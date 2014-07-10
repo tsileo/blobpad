@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"fmt"
-	"log"
 	"time"
 	"strconv"
 
@@ -77,11 +76,13 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	    }
 		u, _ := uuid.NewV4()
 	    t.UUID = u.String()
+	    con.Do("TXINIT", "blobpad")
 	    con.Do("SADD", "nbstest1", t.UUID)
 	    // TODO a mattr cmd
 	    // 1 arg => get
 	    // 2 arg => set with current timestamp
 	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), time.Now().UTC().Unix(), t.Name)
+	    con.Do("TXCOMMIT")
 	    return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -112,9 +113,12 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	    }
 		u, _ := uuid.NewV4()
 	    n.UUID = u.String()
-	    // TODO txinit/txcommit
+	    con.Do("TXINIT", "blobpad")
 	    con.Do("SADD", "nstest1", n.UUID)
+	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
 	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), n.Title)
+	    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
+	    con.Do("TXCOMMIT")
 	    return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -152,6 +156,7 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	    if vars["id"] == "" {
 	    	panic("missing note id")
 	    }
+	    con.Do("TXINIT", "blobpad")
 	    if n.Title != "" {
 	    	con.Do("LADD", fmt.Sprintf("n:%v:title", vars["id"]), time.Now().UTC().Unix(), n.Title)
 	    }
@@ -171,6 +176,7 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 			}
 	    	con.Do("LADD", fmt.Sprintf("n:%v:body", vars["id"]), time.Now().UTC().Unix(), blobHash)	
 	    }
+	    con.Do("TXCOMMIT")
 		return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
