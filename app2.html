@@ -9,6 +9,11 @@
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/css/uikit.min.css">
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/css/addons/uikit.addons.min.css">
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/codemirror.min.css">
+        <style type="text/css">
+        .nselected {
+            background: #FAFAFA;
+        }
+        </style>
     </head>
 
     <body>
@@ -25,7 +30,7 @@
 
                                     <ul class="uk-navbar-nav">
                                         <li class="uk-parent uk-active" data-uk-dropdown="">
-                                            <a href=""><i class="uk-icon-inbox"></i> Notebooks: <strong>All</strong></a>
+                                            <a href=""><i class="uk-icon-inbox"></i> <strong>All</strong></a>
 
                                             <div class="uk-dropdown uk-dropdown-navbar" style="">
                                                 <ul class="uk-nav uk-nav-navbar">
@@ -40,74 +45,73 @@
 
                                     </ul>
 
+                                     <div class="uk-navbar-flip">
+
+                                        <ul class="uk-navbar-nav">
+                                            <li><a href="/" id="new-note"><i class="uk-icon-plus"></i> New note</a></li>
+                                        </ul>
+                                    </div>
+<!--
                                     <div class="uk-navbar-content uk-hidden-small">
                                         <form class="uk-form uk-margin-remove uk-display-inline-block">
                                             <input type="text" placeholder="Search">
-                                            <button class="uk-button uk-button-primary">Submit</button>
                                         </form>
-                                    </div>
+                                    </div>-->
                                 </nav>
 
                             </div>
-      <div>
+<!--
+      <div style="padding:10px">
     <h3 class="uk-margin-remove">My Note</h3>
     <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
     <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-      <div>
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    <hr class="uk-article-divider uk-margin-remove"></hr>
-    </div>
-            </div>
-            <div class="uk-height-1-1" style="padding:0;-webkit-flex: 1;flex: 1;">
-<textarea style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}">
+    
+    </div><hr class="uk-article-divider uk-margin-remove"></hr>
+
+-->
+<div id="sidebar">
+</div>
+        </div>
+            <div style="padding:0;-webkit-flex: 1;flex: 1;height:100vh;overflow-y: scroll;" id="main">
+
+
+
+
+
+
+
+<div class="uk-margin-remove">
+                                <nav class="uk-navbar">
+                                     <div class="uk-navbar-flip">
+                                    <ul class="uk-navbar-nav">
+                                        <li class="uk-parent" data-uk-dropdown="">
+                                            <a href=""><i class="uk-icon-clock-o"></i> History</a>
+
+                                            <div class="uk-dropdown uk-dropdown-navbar" style="">
+                                                <ul class="uk-nav uk-nav-navbar">
+                                                    <li><a href="#">All</a></li>
+                                                </ul>
+                                            </div>
+
+                                        </li>
+
+                                    </ul>
+                                </div>
+                                  <div class="uk-navbar-center uk-navbar-content">glast updated: x minutes ago</div>
+                                </nav>
+
+                            </div>
+
+
+
+
+
+                <div style="padding: 10px">
+                <h1 id="title" contenteditable="true">Untitled</h1>
+<textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}">
 ok
-</textarea>
+</textarea></div>
+
 </div>
         </div>
 
@@ -120,5 +124,124 @@ ok
        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/gfm/gfm.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/htmleditor.min.js"></script>
+        <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
+      <script id='template' type='text/ractive'>
+       {{#items}}
+    {{>note}}
+  {{/items}}
+</div>
+
+<!-- {{>note}} -->
+      <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load" style="padding:10px;cursor: pointer;">
+    <h3 class="uk-margin-remove">{{title}}</h3>
+    <p class="uk-article-meta uk-margin-remove">Created: {{created_at}}</p>
+   <p class="uk-article-meta uk-margin-remove">Modified: {{updated_at}}</p>
+    
+    </div><hr class="uk-article-divider uk-margin-remove"></hr>
+<!-- {{/note}} -->
+    </script>
+        <script type="text/javascript">
+
+var editable = document.getElementById('title');
+editable.addEventListener('blur', function() {
+    if ($("#body").data("uuid") == undefined) {
+        console.log("uuid not set")
+        return;
+    }
+    body = $("#body").data("htmleditor").editor.getValue()
+    $.ajax({url: "/api/note/"+$("#body").data("uuid"),
+        type: "PUT",
+        data: JSON.stringify({"title": editable.innerHTML}),
+        dataType: "json"
+    }).done(function(data) {
+        console.log(data);
+    });
+});
+
+$("#new-note").on("click", function(ev) {
+    ev.preventDefault();
+    console.log("new");
+    newNote("Untitled");
+});
+// Hook-up Ctrl+s
+$("#body").on("htmleditor-save", function(ed) {
+    if ($("#body").data("uuid") == undefined) {
+        console.log("uuid not set")
+        return;
+    }
+    body = $("#body").data("htmleditor").editor.getValue()
+    $.ajax({url: "/api/note/"+$("#body").data("uuid"),
+        type: "PUT",
+        data: JSON.stringify({"body": body}),
+        dataType: "json"
+    }).done(function(data) {
+        console.log(data);
+        // TODO update the sidebar
+    });
+});
+
+var notes = [];
+var sidebar = new Ractive({
+  el: 'sidebar',
+  template: "#template",
+  data: { items: [] }
+});
+sidebar.on("load", function(ev) {
+    uuid = $(ev.node).data("uuid");
+    $(".nselected").removeClass("nselected");
+    $(ev.node).addClass("nselected")
+    console.log("load called on"+uuid);
+    loadNote(uuid);
+});
+var newNote = function(title) {
+    $.ajax({url: "/api/note",
+        type: "POST",
+        data: JSON.stringify({"title": title}),
+        dataType: "json"
+    }).done(function(data) {
+        updateNote(data);
+        console.log(data);
+        $("#body").data("uuid", data.id);
+        console.log("unshifting")
+        notes.unshift(data)
+        loadNote(data.id)
+        $(".nselected").removeClass("nselected");
+        $(".noteBox").eq(0).addClass("nselected");
+    });
+};
+
+var loadNote = function(uuid) {
+    $("#body").data("uuid", uuid);
+    $.ajax({url: "/api/note/"+uuid,
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        updateNote(data);
+        console.log(data);
+        $("#title").html(data.title);
+        $("#body").data("htmleditor").editor.setValue(data.body);
+
+    });
+}
+
+var updateNote = function(note) {
+    note.created_at = new Date(note.created_at*1000).toLocaleString();
+    if (note.updated_at == 0) {
+        note.updated_at = note.created_at
+    } else {
+        note.updated_at = new Date(note.updated_at*1000).toLocaleString();
+    }
+};
+
+$.ajax({url: "/api/note",
+    type: "GET",
+    dataType: "json"
+}).done(function(data) {
+    console.log(data);
+    data.map(updateNote);
+    notes = data;
+    sidebar.set("items", notes)
+});
+</script>
     </body>
 </html>

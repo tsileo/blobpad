@@ -78,6 +78,7 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	    t.UUID = u.String()
 	    con.Do("TXINIT", "blobpad")
 	    con.Do("SADD", "nbstest1", t.UUID)
+	    con.Do("SET", fmt.Sprintf("nb:%v:created", t.UUID), time.Now().UTC().Unix())
 	    // TODO a mattr cmd
 	    // 1 arg => get
 	    // 2 arg => set with current timestamp
@@ -99,7 +100,12 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 		notesUUIDs, _ := redis.Strings(con.Do("SMEMBERS", "nstest1"))
 		for _, UUID := range notesUUIDs {
 			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", UUID)))
-			notes = append(notes, &Note{UUID: UUID, Title: title})
+			created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", UUID)))
+			notes = append(notes, &Note{
+				UUID: UUID,
+				Title: title,
+				CreatedAt: created,
+			})
 		}
 		js, _ := json.Marshal(notes)
 		w.Header().Set("Content-Type", "application/json")
@@ -115,10 +121,16 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	    n.UUID = u.String()
 	    con.Do("TXINIT", "blobpad")
 	    con.Do("SADD", "nstest1", n.UUID)
+	    created := time.Now().UTC().Unix()
+	    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
 	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
 	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), n.Title)
 	    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
 	    con.Do("TXCOMMIT")
+	    n.CreatedAt = int(created)
+	    js, _ := json.Marshal(n)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(js)
 	    return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -132,8 +144,13 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	switch {
 	case r.Method == "GET":
+		created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", vars["id"])))
 		title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", vars["id"])))
-		n := &Note{UUID: vars["id"], Title: title}
+		n := &Note{
+			UUID: vars["id"],
+			Title: title,
+			CreatedAt: created,
+		}
 		bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", vars["id"]), "WITH", "INDEX"))
 		if len(bodyData) == 2 {
 			n.UpdatedAt, _ = strconv.Atoi(bodyData[0])

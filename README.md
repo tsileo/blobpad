@@ -14,6 +14,7 @@ BlobPad is a note taking application build on top of [BlobStash](https://github.
 
 - [BlobStash](https://github.com/tsileo/blobstash)
 - [UIkit](http://getuikit.com/)
+- [Ractive.js](http://www.ractivejs.org/)
 - [CodeMirror](http://codemirror.net/)
 
 ## Roadmap
