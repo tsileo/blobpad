@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"fmt"
 	"time"
+	"bytes"
 	"strconv"
 
 	"github.com/garyburd/redigo/redis"
@@ -51,6 +52,62 @@ type Note struct {
 	Body string `json:"body"`
 	CreatedAt int `json:"created_at"`
 	UpdatedAt int `json:"updated_at"`
+	History []struct{
+		UpdatedAt int `json:"updated_at"`
+		Version string `json:"version"`
+	} `json:"history"`
+}
+
+func IndexNewNote(note *Note) error {
+	js, _ := json.Marshal(note)
+	var body bytes.Buffer
+	body.Write(js)
+	request, err := http.NewRequest("PUT", "http://localhost:9200/blobpad/notes/"+note.UUID, &body)
+	if err != nil {
+	  	return err
+	}
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+	 	return err
+	}
+	body.Reset()
+	body.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+	  	return fmt.Errorf("failed to index note %+v %v", note, body)
+	}
+    return nil
+}
+
+func IndexUpdateNote(note *Note) error {
+	data := map[string]map[string]interface{}{"doc": map[string]interface{}{}}
+	if note.Title != "" {
+		data["doc"]["title"] = note.Title
+	}
+	if note.Body != "" {
+		data["doc"]["body"] = note.Body
+		data["doc"]["updated_at"] = note.UpdatedAt
+	}
+	js, _ := json.Marshal(data)
+	var body bytes.Buffer
+	body.Write(js)
+	request, err := http.NewRequest("POST", "http://localhost:9200/blobpad/notes/"+note.UUID+"/_update", &body)
+	if err != nil {
+	  	return err
+	}
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+	 	return err
+	}
+	body.Reset()
+	body.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+	  	return fmt.Errorf("failed to index note %+v %v", note, body)
+	}
+    return nil
 }
 
 func notebooksHandler(w http.ResponseWriter, r *http.Request) {
@@ -101,11 +158,17 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 		for _, UUID := range notesUUIDs {
 			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", UUID)))
 			created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", UUID)))
-			notes = append(notes, &Note{
+			bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", UUID), "WITH", "INDEX"))
+			n := &Note{
 				UUID: UUID,
 				Title: title,
 				CreatedAt: created,
-			})
+			}
+			notes = append(notes, n)
+			if len(bodyData) == 2 {
+				n.UpdatedAt, _ = strconv.Atoi(bodyData[0])
+			}
+			
 		}
 		js, _ := json.Marshal(notes)
 		w.Header().Set("Content-Type", "application/json")
@@ -128,6 +191,7 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
 	    con.Do("TXCOMMIT")
 	    n.CreatedAt = int(created)
+	    IndexNewNote(&n)
 	    js, _ := json.Marshal(n)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(js)
@@ -160,6 +224,8 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			n.Body = string(blob)
 		}
+		values, _ := redis.Values(con.Do("LRITER", fmt.Sprintf("n:%v:body", vars["id"]), "WITH", "RANGE"))
+		redis.ScanSlice(values, &n.History)
 		js, _ := json.Marshal(n)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(js)
@@ -173,6 +239,7 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	    if vars["id"] == "" {
 	    	panic("missing note id")
 	    }
+	    n.UUID = vars["id"]
 	    con.Do("TXINIT", "blobpad")
 	    if n.Title != "" {
 	    	con.Do("LADD", fmt.Sprintf("n:%v:title", vars["id"]), time.Now().UTC().Unix(), n.Title)
@@ -191,10 +258,35 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	    			panic(err)
 	    		}
 			}
-	    	con.Do("LADD", fmt.Sprintf("n:%v:body", vars["id"]), time.Now().UTC().Unix(), blobHash)	
+			updatedAt := time.Now().UTC().Unix()
+	    	con.Do("LADD", fmt.Sprintf("n:%v:body", vars["id"]), updatedAt, blobHash)
+	    	n.UpdatedAt = int(updatedAt)
 	    }
 	    con.Do("TXCOMMIT")
+	    IndexUpdateNote(&n)
+	    js, _ := json.Marshal(n)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(js)
 		return
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+}
+
+func noteVersionHandler(w http.ResponseWriter, r *http.Request) {
+	con := pool.Get()
+	defer con.Close()
+	vars := mux.Vars(r)
+	switch {
+	case r.Method == "GET":
+		blob, err := blobstore.GetBlob(ctx, vars["hash"])
+		if err != nil {
+			panic(err)
+		}
+		js, _ := json.Marshal(map[string]string{"body": string(blob)})
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(js)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -208,6 +300,7 @@ func main() {
 	r.HandleFunc("/api/notebook", notebooksHandler)
 	r.HandleFunc("/api/note", notesHandler)
 	r.HandleFunc("/api/note/{id}", noteHandler)
+	r.HandleFunc("/api/note/version/{hash}", noteVersionHandler)
 	http.Handle("/", r)
 	http.ListenAndServe(":8000", nil)
 }

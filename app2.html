@@ -82,14 +82,17 @@
 
 <div class="uk-margin-remove">
                                 <nav class="uk-navbar">
+                                     
+                                  <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> <span id="created"></span><span class="uk-text-muted"> modified: </span><span id="modified"></span></div>
+
                                      <div class="uk-navbar-flip">
                                     <ul class="uk-navbar-nav">
                                         <li class="uk-parent" data-uk-dropdown="">
                                             <a href=""><i class="uk-icon-clock-o"></i> History</a>
 
-                                            <div class="uk-dropdown uk-dropdown-navbar" style="">
-                                                <ul class="uk-nav uk-nav-navbar">
-                                                    <li><a href="#">All</a></li>
+                                            <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
+                                                <ul class="uk-nav uk-nav-navbar" id="ractiveHistory">
+                                                    
                                                 </ul>
                                             </div>
 
@@ -97,7 +100,6 @@
 
                                     </ul>
                                 </div>
-                                  <div class="uk-navbar-center uk-navbar-content">glast updated: x minutes ago</div>
                                 </nav>
 
                             </div>
@@ -124,6 +126,7 @@ ok
        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/gfm/gfm.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/htmleditor.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
         <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
       <script id='template' type='text/ractive'>
        {{#items}}
@@ -132,13 +135,19 @@ ok
 </div>
 
 <!-- {{>note}} -->
-      <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load" style="padding:10px;cursor: pointer;">
+      <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load">
+      <div style="padding:10px;cursor: pointer;">
     <h3 class="uk-margin-remove">{{title}}</h3>
     <p class="uk-article-meta uk-margin-remove">Created: {{created_at}}</p>
    <p class="uk-article-meta uk-margin-remove">Modified: {{updated_at}}</p>
     
-    </div><hr class="uk-article-divider uk-margin-remove"></hr>
+    </div><hr class="uk-article-divider uk-margin-remove"></hr></div>
 <!-- {{/note}} -->
+    </script>
+    <script id='historyTemplate' type='text/ractive'>
+    {{#items}}
+    <li><a href="#" on-click="goback" data-version="{{version}}">{{updated_at}}</a></li>
+  {{/items}}
     </script>
         <script type="text/javascript">
 
@@ -154,7 +163,10 @@ editable.addEventListener('blur', function() {
         data: JSON.stringify({"title": editable.innerHTML}),
         dataType: "json"
     }).done(function(data) {
+        //updateNote(data);
         console.log(data);
+        sidebar.set("items["+$("#body").data("index")+"].title", data.title);
+        $.UIkit.notify("<i class='uk-icon-check'></i> Note title updated");
     });
 });
 
@@ -176,10 +188,30 @@ $("#body").on("htmleditor-save", function(ed) {
         dataType: "json"
     }).done(function(data) {
         console.log(data);
-        // TODO update the sidebar
+        updateNote(data);
+        sidebar.set("items["+$("#body").data("index")+"].updated_at", data.updated_at);
+        $("#modified").html(data.updated_at);
+        $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
     });
 });
-
+var history = new Ractive({
+  el: 'ractiveHistory',
+  template: "#historyTemplate",
+  data: { items: [] }
+});
+history.on("goback", function(ev) {
+    hash = $(ev.node).data("version");
+    $(ev.node).parents("li").addClass("uk-active")
+    console.log(hash);
+    $.ajax({url: "/api/note/version/"+hash,
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        console.log(data);
+        $("#body").data("htmleditor").editor.setValue(data.body);
+        $.UIkit.notify("<i class='uk-icon-clock'></i> Note version loaded");
+    });
+});
 var notes = [];
 var sidebar = new Ractive({
   el: 'sidebar',
@@ -188,10 +220,8 @@ var sidebar = new Ractive({
 });
 sidebar.on("load", function(ev) {
     uuid = $(ev.node).data("uuid");
-    $(".nselected").removeClass("nselected");
-    $(ev.node).addClass("nselected")
-    console.log("load called on"+uuid);
-    loadNote(uuid);
+    console.log("load called on"+uuid+" #"+$(ev.node).index());
+    loadNote(uuid, $(ev.node).index());
 });
 var newNote = function(title) {
     $.ajax({url: "/api/note",
@@ -204,14 +234,17 @@ var newNote = function(title) {
         $("#body").data("uuid", data.id);
         console.log("unshifting")
         notes.unshift(data)
-        loadNote(data.id)
+        loadNote(data.id, 0)
         $(".nselected").removeClass("nselected");
         $(".noteBox").eq(0).addClass("nselected");
     });
 };
 
-var loadNote = function(uuid) {
+var loadNote = function(uuid, index) {
+    $(".nselected").removeClass("nselected");
+    $(".noteBox").eq(index).addClass("nselected");
     $("#body").data("uuid", uuid);
+    $("#body").data("index", index);
     $.ajax({url: "/api/note/"+uuid,
         type: "GET",
         dataType: "json"
@@ -220,6 +253,9 @@ var loadNote = function(uuid) {
         console.log(data);
         $("#title").html(data.title);
         $("#body").data("htmleditor").editor.setValue(data.body);
+        $("#modified").html(data.updated_at);
+        $("#created").html(data.created_at);
+        history.merge("items", data.history);
 
     });
 }
@@ -231,6 +267,11 @@ var updateNote = function(note) {
     } else {
         note.updated_at = new Date(note.updated_at*1000).toLocaleString();
     }
+    if (note.history != null) {
+        note.history.map(function(h) {
+            h.updated_at = new Date(h.updated_at*1000).toLocaleString();
+        });
+    };
 };
 
 $.ajax({url: "/api/note",
@@ -240,7 +281,13 @@ $.ajax({url: "/api/note",
     console.log(data);
     data.map(updateNote);
     notes = data;
-    sidebar.set("items", notes)
+    sidebar.set("items", notes);
+
+    if (notes.length > 0) {
+        loadNote($(".noteBox").eq(0).data("uuid"), 0);
+    } else {
+        newNote("Untitled");
+    }
 });
 </script>
     </body>
