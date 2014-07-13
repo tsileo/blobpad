@@ -6,14 +6,20 @@ import (
 	"net/http"
 	"fmt"
 	"time"
+	"io"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"bytes"
 	"strconv"
 	"strings"
+	"path/filepath"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
 	"github.com/nu7hatch/gouuid"
 	"github.com/tsileo/blobstash/client/blobstore"
+	"github.com/tsileo/blobstash/client"
 )
 
 var defaultAddr = ":9735"
@@ -51,6 +57,9 @@ type Note struct {
 	UUID string `json:"id"`
 	Title string `json:"title"`
 	Body string `json:"body"`
+	PdfRef string `json:"pdf_ref"`
+	PdfContentRef string `json:"pdf_content_ref"`
+	PdfFilename string `json:"pdf_filename"`
 	CreatedAt int `json:"created_at"`
 	UpdatedAt int `json:"updated_at"`
 	History []struct{
@@ -146,12 +155,6 @@ func IndexQueryNote(query map[string]interface{}) ([]string, error) {
 }
 
 var QueryMatchAll = map[string]interface{}{"match_all": map[string]interface{}{}}
-
-// TODO
-// - [ ] search query handling
-// - [ ] latest note sorted by updated_at
-// ## reference request
-// $ curl -XPOST "http://localhost:9200/blobpad/notes/_search" -d'{"query":{"match_all": {}}, "sort":[{"updated_at": {"order": "desc"}}]}}'
 
 func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	con := pool.Get()
@@ -271,12 +274,18 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET":
 		created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", vars["id"])))
 		notebook, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:notebook", vars["id"])))
+		pdfRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_ref", vars["id"])))
+		pdfFilename, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_filename", vars["id"])))
+		pdfContentRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_content_ref", vars["id"])))
 		title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", vars["id"])))
 		n := &Note{
 			UUID: vars["id"],
 			Title: title,
 			CreatedAt: created,
 			Notebook: notebook,
+			PdfFilename: pdfFilename,
+			PdfRef: pdfRef,
+			PdfContentRef: pdfContentRef,
 		}
 		bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", vars["id"]), "WITH", "INDEX"))
 		if len(bodyData) == 2 {
@@ -308,19 +317,10 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	    	con.Do("LADD", fmt.Sprintf("n:%v:title", vars["id"]), time.Now().UTC().Unix(), n.Title)
 	    }
 	    if n.Body != "" {
-	    	h := sha1.New()
-	    	blob := []byte(n.Body)
-			h.Write(blob)
-			blobHash := fmt.Sprintf("%x", h.Sum(nil))
-			exists, err := blobstore.StatBlob(ctx, blobHash)
-			if err != nil {
-				panic(err)
-			}
-			if !exists {
-				if err := blobstore.PutBlob(ctx, blobHash, blob); err != nil {
-	    			panic(err)
-	    		}
-			}
+	    	blobHash, err := UploadBlob([]byte(n.Body))
+	    	if err != nil {
+	    		panic(err)
+	    	}
 			updatedAt := time.Now().UTC().Unix()
 	    	con.Do("LADD", fmt.Sprintf("n:%v:body", vars["id"]), updatedAt, blobHash)
 	    	n.UpdatedAt = int(updatedAt)
@@ -335,6 +335,22 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+}
+
+func UploadBlob(blob []byte) (blobHash string, err error) {
+	h := sha1.New()
+	h.Write(blob)
+	blobHash = fmt.Sprintf("%x", h.Sum(nil))
+	exists, err := blobstore.StatBlob(ctx, blobHash)
+	if err != nil {
+		return blobHash, err
+	}
+	if !exists {
+		if err := blobstore.PutBlob(ctx, blobHash, blob); err != nil {
+			return blobHash, err
+		}
+	}
+	return blobHash, nil
 }
 
 func noteVersionHandler(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +390,115 @@ func noteSearchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	con := pool.Get()
+	defer con.Close()
+	switch r.Method {
+
+	//POST takes the uploaded file(s) and saves it to disk.
+	case "POST":
+		//parse the multipart form in the request
+		mr, err := r.MultipartReader()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			filename := part.FileName()
+			n := Note{
+				PdfFilename: filepath.Base(filename),
+			}
+
+			tmp, _ := ioutil.TempFile("", "blobpad")
+			if _, err := io.Copy(tmp, part); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			tmp.Close()
+ 
+			fmt.Printf("received file %v", filename)
+			cmd := exec.Command("pdftotext", tmp.Name(), tmp.Name()+".txt")
+			defer os.Remove(tmp.Name())
+			defer os.Remove(tmp.Name()+".txt")
+			_, err = cmd.CombinedOutput()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			text, err := ioutil.ReadFile(tmp.Name()+".txt")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			textHash, err := UploadBlob(text)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			n.PdfContentRef = textHash
+			snap, _, _, err := cl.Put(&client.Ctx{Namespace: "blobpad", Archive: true}, tmp.Name())
+			if err != nil {
+				fmt.Printf("Error put file %v", err)
+			}
+			n.PdfRef = snap.Ref
+	   		u, _ := uuid.NewV4()
+	   		n.UUID = strings.Replace(u.String(), "-", "", -1)
+	    	con.Do("TXINIT", "blobpad")
+		    con.Do("SADD", "nstest1", n.UUID)
+		    created := time.Now().UTC().Unix()
+		    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
+		    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), "a8aebecaef4849f74ea16c216646f7fe")
+		    con.Do("SET", fmt.Sprintf("n:%v:pdf_ref", n.UUID), n.PdfRef)
+		    con.Do("SET", fmt.Sprintf("n:%v:pdf_filename", n.UUID), n.PdfFilename)
+		    con.Do("SET", fmt.Sprintf("n:%v:pdf_content_ref", n.UUID), n.PdfContentRef)
+		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
+		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), filepath.Base(filename))
+		    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
+		    con.Do("TXCOMMIT")
+		    n.CreatedAt = int(created)
+		    IndexNewNote(&n)
+		    js, _ := json.Marshal(n)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(js)
+		}
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func pdfHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	ctx := &client.Ctx{Namespace: "blobpad"}
+	con := cl.ConnWithCtx(ctx)
+	defer con.Close()
+	meta, err := client.NewMetaFromDB(con, vars["ref"])
+	if err != nil {
+		panic(err)
+	}
+	ffile := client.NewFakeFile(cl, ctx, meta.Ref, meta.Size)
+	defer ffile.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, ffile)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Write(buf.Bytes())
+}
+var cl *client.Client
 func main() {
+	client, err := client.NewClient("blobpad", "localhost:9735", []string{})
+	if err != nil {
+		panic(err)
+	}
+	cl = client
+	defer cl.Close()
 	pool = getPool(defaultAddr)
 	r := mux.NewRouter()
 	r.HandleFunc("/", indexHandler)
@@ -383,6 +507,8 @@ func main() {
 	r.HandleFunc("/api/note/version/{hash}", noteVersionHandler)
 	r.HandleFunc("/api/note/search", noteSearchHandler)
 	r.HandleFunc("/api/note/{id}", noteHandler)
+	r.HandleFunc("/api/upload", uploadHandler)
+	r.HandleFunc("/api/pdf/{ref}", pdfHandler)
 	http.Handle("/", r)
 	http.ListenAndServe(":8000", nil)
 }

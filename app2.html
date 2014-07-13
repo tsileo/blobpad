@@ -11,14 +11,67 @@
         .nselected {
             background: #FAFAFA;
         }
+        /* CSS classes used by TextLayerBuilder to style the text layer divs */
+
+/* This stuff is important! Otherwise when you select the text, the text in the divs will show up! */
+::selection { background:rgba(0,0,255,0.3); }
+::-moz-selection { background:rgba(0,0,255,0.3); }
+
+.textLayer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    color: #000;
+    font-family: sans-serif;
+    overflow: hidden;
+}
+
+.textLayer > div {
+    color: transparent;
+    position: absolute;
+    line-height: 1;
+    white-space: pre;
+    cursor: text;
+}
+
+.textLayer .highlight {
+    margin: -1px;
+    padding: 1px;
+
+    background-color: rgba(180, 0, 170, 0.2);
+    border-radius: 4px;
+}
+
+.textLayer .highlight.begin {
+    border-radius: 4px 0px 0px 4px;
+}
+
+.textLayer .highlight.end {
+    border-radius: 0px 4px 4px 0px;
+}
+
+.textLayer .highlight.middle {
+    border-radius: 0px;
+}
+
+.textLayer .highlight.selected {
+    background-color: rgba(0, 100, 0, 0.2);
+}
+
+#pdfBox {
+    border:1px solid #e5e5e5;
+    width: 100%;
+}
         </style>
     </head>
-    <body>
+    <body style="height:100%;overflow-y: scroll;padding:0">
         <div class="" style="display: -webkit-flex;display: flex;align-items:strech;">
             <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;" id="sidebar">
                 
             </div>
-            <div style="padding:0;-webkit-flex: 1;flex: 1;height:100vh;overflow-y: scroll;" id="main">
+            <div style="padding:0;-webkit-flex: 1;flex: 1;" id="main">
 
 
 </div>
@@ -48,7 +101,12 @@
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/autocomplete.min.js"></script>
         <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
- 
+   
+  <script type="text/javascript" src="https://raw.github.com/mozilla/pdf.js/gh-pages/build/pdf.js"></script>
+
+  <script type="text/javascript" src="https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/ui_utils.js"></script>
+  <script type="text/javascript" src="https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/text_layer_builder.js"></script>
+  
       <script id='template' type='text/ractive'>
       <div class="uk-margin-remove">
                     <nav class="uk-navbar">
@@ -132,11 +190,30 @@
 
 
 
-
-
                 <div style="padding: 10px">
             <h1 contenteditable="true" value="{{title}}" id="title"></h1>
-<textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea></div>
+
+
+{{#pdf_ref}}
+<div id="pdfBox">
+<div class="uk-margin-remove">
+                    <nav class="uk-navbar">
+                                  
+                                  <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{pdf_filename}}</div>
+
+                                  
+                                </nav>
+
+                            </div>
+<div id="pdfContainer"></div>
+</div>
+{{/pdf_ref}}
+
+<div id="editorBox">
+<textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
+</div>
+
+</div>
     </script>
         <script type="text/javascript">
 $( document ).ajaxError(function( event, jqxhr, settings, thrownError ) {
@@ -276,6 +353,12 @@ var loadNote = function(uuid, index) {
         dataType: "json"
     }).done(function(data) {
         editor.set(data);
+        if (data.pdf_ref != "") {
+            loadPdf('/api/pdf/'+data.pdf_ref);
+            $(".uk-htmleditor").hide();
+        } else {
+            $(".uk-htmleditor").show();
+        }
     });
 }
 
@@ -350,6 +433,82 @@ $("#body").on("htmleditor-save", function(ed) {
         $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
     });
 });
+PDFJS.disableWorker = true;
+  var scale = 1.5;
+
+  function loadPdf(pdfPath) {
+    var pdf = PDFJS.getDocument(pdfPath);
+    pdf.then(renderPdf);
+  }
+
+  function renderPdf(pdf) {
+    pdf.getPage(1).then(renderPage);
+  }
+
+  function renderPage(page) {
+    var viewport = page.getViewport(scale);
+    var $canvas = jQuery("<canvas></canvas>");
+
+    // Set the canvas height and width to the height and width of the viewport
+    var canvas = $canvas.get(0);
+    var context = canvas.getContext("2d");
+
+    // The following few lines of code set up scaling on the context if we are on a HiDPI display
+    var outputScale = getOutputScale(context);
+    canvas.width = (Math.floor(viewport.width) * outputScale.sx) | 0;
+    canvas.height = (Math.floor(viewport.height) * outputScale.sy) | 0;
+    canvas.style.width = Math.floor(viewport.width) + 'px';
+    canvas.style.height = Math.floor(viewport.height) + 'px';
+
+    // Append the canvas to the pdf container div
+    var $pdfContainer = jQuery("#pdfContainer");
+    $pdfContainer.css("height", canvas.style.height)
+                 .css("width", canvas.style.width);
+    $pdfContainer.append($canvas);
+
+    var canvasOffset = $canvas.offset();
+    var $textLayerDiv = jQuery("<div />")
+      .addClass("textLayer")
+      .css("height", canvas.style.height)
+      .css("width", canvas.style.width)
+      .offset({
+        top: canvasOffset.top,
+        left: canvasOffset.left
+      });
+
+    context._scaleX = outputScale.sx;
+    context._scaleY = outputScale.sy;
+    if (outputScale.scaled) {
+      context.scale(outputScale.sx, outputScale.sy);
+    }
+
+    $pdfContainer.append($textLayerDiv);
+
+    page.getTextContent().then(function (textContent) {
+      var textLayer = new TextLayerBuilder({
+        textLayerDiv: $textLayerDiv.get(0),
+        viewport: viewport,
+        pageIndex: 0
+      });
+      textLayer.setTextContent(textContent);
+
+      var renderContext = {
+        canvasContext: context,
+        viewport: viewport
+      };
+
+      page.render(renderContext);
+    });
+  }
+
+  //loadPdf(url);
+//$(window).scroll(function() {
+//    if ($(document).height() > $(window).height()) {
+//        $("#sidebar").css("height", "100%")
+//    } else {
+//        $("#sidebar").css("height", "100hv")
+//    }
+//});
 
 </script>
     </body>
