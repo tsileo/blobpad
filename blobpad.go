@@ -185,6 +185,9 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	    // 2 arg => set with current timestamp
 	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), time.Now().UTC().Unix(), t.Name)
 	    con.Do("TXCOMMIT")
+		js, _ := json.Marshal(t)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(js)
 	    return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)

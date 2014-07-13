@@ -56,7 +56,7 @@
                         <ul class="uk-navbar-nav">
                             <li class="uk-parent uk-active" data-uk-dropdown="">
                                 <a href=""><i class="uk-icon-inbox"></i> <strong>{{notebook}}</strong></a>
-                                <div class="uk-dropdown uk-dropdown-navbar" style="">
+                                <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
                                    <ul class="uk-nav uk-nav-navbar">
                                    {{#notebooks}}
                                    <li><a href="#" on-click="loadnotebook" data-id="{{id}}">{{name}}</a></li>
@@ -93,10 +93,10 @@
       <div style="padding:10px;cursor: pointer;">
     <h3 class="uk-margin-remove">{{title}}</h3>
     {{^../../notebookId}}
-   <p class="uk-article-meta uk-margin-remove">Notebook: {{notebook}}</p>
+   <p class="uk-article-meta uk-margin-remove">Notebook: {{notebookName(notebook)}}</p>
    {{/../../notebookId}}
     <p class="uk-article-meta uk-margin-remove">Created: {{formatDate(created_at)}}</p>
-   <p class="uk-article-meta uk-margin-remove">Modified: {{formatDate(updated_at)}}</p>
+   {{#updated_at}}<p class="uk-article-meta uk-margin-remove">Modified: {{formatDate(updated_at)}}</p>{{/updated_at}}
 
     
     </div><hr class="uk-article-divider uk-margin-remove"></hr></div>
@@ -107,7 +107,7 @@
                 <div class="uk-margin-remove">
                     <nav class="uk-navbar">
                                   
-                                  <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}</div>
+                                  <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}{{#updated_at}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}{{/updated_at}}</div>
 
                                      <div class="uk-navbar-flip">
                                     <ul class="uk-navbar-nav">
@@ -149,11 +149,15 @@ var highlightNote = function(index) {
     $(".nselected").removeClass("nselected");
     $(".noteBox").eq(index).addClass("nselected");
 };
+
+// Focus on the notebook name when the new notebook modal appear
 $("#new-notebook").on({
     'uk.modal.show': function(){
         $("#new-notebook-name").focus()
     },
 });
+
+// Hook-up the new notebook form in the modal
 $("#new-notebook-form").on("submit", function(ev) {
     ev.preventDefault();
     notebook = $("#new-notebook-name").val();
@@ -162,9 +166,12 @@ $("#new-notebook-form").on("submit", function(ev) {
     $.ajax({url: "/api/notebook",
         type: "POST",
         data: JSON.stringify({"name": notebook}),
-    }).done(function() {
+    }).done(function(data) {
         $.UIkit.notify("<i class='uk-icon-check'></i> Notebook created");
+        sidebar.set({notebook: data.name, notebookId: data.id});
         loadNotebooks();
+        loadNotes();
+
     });
 });
 
@@ -172,21 +179,31 @@ var notes = [];
 var sidebar = new Ractive({
   el: 'sidebar',
   template: "#template",
-  data: { items: [], formatDate: formatDate, notebook: "All", notebookId: "", notebooks: [] }
+  data: { items: [], formatDate: formatDate, notebook: "All", notebookId: "", notebooks: [], notebookName: function(id) {
+    return this.data.notebookNameMap[id];
+  } }
 });
+
+// Load a note
 sidebar.on("load", function(ev) {
     uuid = $(ev.node).data("uuid");
     loadNote(uuid, $(ev.node).index());
 });
+
+// Select a notebook
 sidebar.on("loadnotebook", function(ev) {
     notebook = $(ev.node).data("id");
     sidebar.set({notebook: $(ev.node).html(), notebookId: notebook});
     console.log("load "+notebook);
     loadNotes();
 });
+
+// Create a new untitled note
 sidebar.on("newnote", function(ev) {
     newNote("Untitled");
 });
+
+// Only show the "New Note" button when a notebook is selected
 sidebar.observe('notebookId', function(newValue, oldValue, keypath) {
     if (newValue == oldValue) {
         return;
@@ -196,6 +213,17 @@ sidebar.observe('notebookId', function(newValue, oldValue, keypath) {
     } else {
         $("#new-note-menu").show();
     };
+});
+
+// Compute a map[notebook id] => notebook name each time notebooks are updated
+sidebar.observe("notebooks", function(newValue, oldValue, keypath) {
+    if (newValue == oldValue || newValue.length == 0) {
+        return;
+    }
+    this.data.notebookNameMap = {};
+    for (i = 0; i < newValue.length; i++) {
+        this.data.notebookNameMap[newValue[i].id] = newValue[i].name;
+    }
 });
 var loadNotes = function() {
     var params = "";
@@ -256,6 +284,8 @@ var editor = new Ractive({
   template: "#editorTemplate",
   data: { history: [], title: "Untitled", formatDate: formatDate }
 });
+
+// Load a previous note version
 editor.on("goback", function(ev) {
     hash = $(ev.node).data("version");
     console.log(hash);
@@ -268,12 +298,16 @@ editor.on("goback", function(ev) {
         $.UIkit.notify("<i class='uk-icon-clock'></i> Note version loaded");
     });
 });
+
+// Sync the note title with the sidebar
 editor.observe('title', function(newValue, oldValue, keypath) {
     if (newValue == oldValue) {
         return;
     }
     sidebar.set("items["+$("#body").data("index")+"].title", newValue);
 });
+
+// Update the editor title when contenteditable edit is done
 $("#title").on("blur", function(ev) {
     if ($("#body").data("uuid") == undefined) {
         console.log("uuid not set")
@@ -287,6 +321,8 @@ $("#title").on("blur", function(ev) {
         $.UIkit.notify("<i class='uk-icon-check'></i> Note title updated");
     }); 
 });
+
+// Update the editor content when the body change
 editor.observe('body', function(newValue, oldValue, keypath) {
     console.log("body"+newValue)
     if (newValue == oldValue || newValue == undefined) {
