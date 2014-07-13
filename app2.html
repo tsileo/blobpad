@@ -1,7 +1,5 @@
-
 <!DOCTYPE html>
 <html lang="en-gb" dir="ltr" class="uk-height-1-1">
-
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,75 +13,101 @@
         }
         </style>
     </head>
-
     <body>
-<!--
-
-                            -->
-
         <div class="" style="display: -webkit-flex;display: flex;align-items:strech;">
-            <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;">
-    <div class="uk-margin-remove">
-                                <nav class="uk-navbar">
+            <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;" id="sidebar">
+                
+            </div>
+            <div style="padding:0;-webkit-flex: 1;flex: 1;height:100vh;overflow-y: scroll;" id="main">
 
-                                    <a class="uk-navbar-brand" href="#">BlobPad</a>
 
-                                    <ul class="uk-navbar-nav">
-                                        <li class="uk-parent uk-active" data-uk-dropdown="">
-                                            <a href=""><i class="uk-icon-inbox"></i> <strong>All</strong></a>
+</div>
+        </div>
 
-                                            <div class="uk-dropdown uk-dropdown-navbar" style="">
-                                                <ul class="uk-nav uk-nav-navbar">
-                                                    <li><a href="#">All</a></li>
-                                                    <li><a href="#">Notebook 2</a></li>
-                                                    <li class="uk-nav-divider"></li>
-                                                    <li><a href="#">New notebook</a></li>
-                                                </ul>
-                                            </div>
-
-                                        </li>
-
+<div id="new-notebook" class="uk-modal">
+    <div class="uk-modal-dialog">
+        <a href="" class="uk-modal-close uk-close uk-close-alt"></a>
+        <form class="uk-form" id="new-notebook-form">
+            <fieldset>
+        <legend>New Notebook</legend>
+        <div class="uk-form-row"><input type="text" placeholder="My Notebook" id="new-notebook-name"></div>
+        <div class="uk-form-row"><button class="uk-button uk-modal-close" type="button">Cancel</button> <button class="uk-button uk-button-primary" type="submit">Save</button></div>
+         <fieldset>
+    </form>
+    </div>
+</div>
+    	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    	<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/uikit.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/codemirror.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/markdown/markdown.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/addon/mode/overlay.min.js"></script>
+       <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/xml/xml.min.js"></script>
+       <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/gfm/gfm.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/htmleditor.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/autocomplete.min.js"></script>
+        <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
+ 
+      <script id='template' type='text/ractive'>
+      <div class="uk-margin-remove">
+                    <nav class="uk-navbar">
+                        <a class="uk-navbar-brand" href="#">BlobPad</a>
+                        <ul class="uk-navbar-nav">
+                            <li class="uk-parent uk-active" data-uk-dropdown="">
+                                <a href=""><i class="uk-icon-inbox"></i> <strong>{{notebook}}</strong></a>
+                                <div class="uk-dropdown uk-dropdown-navbar" style="">
+                                   <ul class="uk-nav uk-nav-navbar">
+                                   {{#notebooks}}
+                                   <li><a href="#" on-click="loadnotebook" data-id="{{id}}">{{name}}</a></li>
+                                   {{/notebooks}}
+                                        <li class="uk-nav-divider"></li>
+                                        <li><a href="#new-notebook" data-uk-modal>New notebook</a></li>
                                     </ul>
-
-                                     <div class="uk-navbar-flip">
-
-                                        <ul class="uk-navbar-nav">
-                                            <li><a href="/" id="new-note"><i class="uk-icon-plus"></i> New note</a></li>
-                                        </ul>
-                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                        <div class="uk-navbar-flip" id="new-note-menu">
+                            <ul class="uk-navbar-nav">
+                                <li><a href="#" on-click="newnote"><i class="uk-icon-plus"></i> New note</a></li>
+                            </ul>
+                        </div>
 <!--
                                     <div class="uk-navbar-content uk-hidden-small">
                                         <form class="uk-form uk-margin-remove uk-display-inline-block">
                                             <input type="text" placeholder="Search">
                                         </form>
                                     </div>-->
-                                </nav>
-
-                            </div>
-<!--
-      <div style="padding:10px">
-    <h3 class="uk-margin-remove">My Note</h3>
-    <p class="uk-article-meta uk-margin-remove">Last edited 12 April 2012.</p>
-    <p class="uk-margin-small">Note start fs  sdlfsd f lsdkf lsdkf lsdf.</p>
-    
-    </div><hr class="uk-article-divider uk-margin-remove"></hr>
-
--->
-<div id="sidebar">
+                    </nav>
+                </div>
+                
+                <div>
+       {{#items}}
+    {{>note}}
+  {{/items}}
 </div>
-        </div>
-            <div style="padding:0;-webkit-flex: 1;flex: 1;height:100vh;overflow-y: scroll;" id="main">
 
+                </div>
+<!-- {{>note}} -->
+      <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load">
+      <div style="padding:10px;cursor: pointer;">
+    <h3 class="uk-margin-remove">{{title}}</h3>
+    {{^../../notebookId}}
+   <p class="uk-article-meta uk-margin-remove">Notebook: {{notebook}}</p>
+   {{/../../notebookId}}
+    <p class="uk-article-meta uk-margin-remove">Created: {{formatDate(created_at)}}</p>
+   <p class="uk-article-meta uk-margin-remove">Modified: {{formatDate(updated_at)}}</p>
 
+    
+    </div><hr class="uk-article-divider uk-margin-remove"></hr></div>
+<!-- {{/note}} -->
+    </script>
 
-
-
-
-
-<div class="uk-margin-remove">
-                                <nav class="uk-navbar">
-                                     
-                                  <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> <span id="created"></span><span class="uk-text-muted"> modified: </span><span id="modified"></span></div>
+    <script id='editorTemplate' type='text/ractive'>
+                <div class="uk-margin-remove">
+                    <nav class="uk-navbar">
+                                  
+                                  <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}</div>
 
                                      <div class="uk-navbar-flip">
                                     <ul class="uk-navbar-nav">
@@ -91,8 +115,10 @@
                                             <a href=""><i class="uk-icon-clock-o"></i> History</a>
 
                                             <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
-                                                <ul class="uk-nav uk-nav-navbar" id="ractiveHistory">
-                                                    
+                                                <ul class="uk-nav uk-nav-navbar">
+                                                        {{#history}}
+    <li><a href="#" on-click="goback" data-version="{{version}}">{{formatDate(updated_at)}}</a></li>
+  {{/history}}
                                                 </ul>
                                             </div>
 
@@ -109,74 +135,169 @@
 
 
                 <div style="padding: 10px">
-                <h1 id="title" contenteditable="true">Untitled</h1>
-<textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}">
-ok
-</textarea></div>
-
-</div>
-        </div>
-
-    	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
-    	<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/uikit.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/codemirror.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/markdown/markdown.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/addon/mode/overlay.min.js"></script>
-       <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/xml/xml.min.js"></script>
-       <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/gfm/gfm.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/htmleditor.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
-        <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
-      <script id='template' type='text/ractive'>
-       {{#items}}
-    {{>note}}
-  {{/items}}
-</div>
-
-<!-- {{>note}} -->
-      <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load">
-      <div style="padding:10px;cursor: pointer;">
-    <h3 class="uk-margin-remove">{{title}}</h3>
-    <p class="uk-article-meta uk-margin-remove">Created: {{created_at}}</p>
-   <p class="uk-article-meta uk-margin-remove">Modified: {{updated_at}}</p>
-    
-    </div><hr class="uk-article-divider uk-margin-remove"></hr></div>
-<!-- {{/note}} -->
-    </script>
-    <script id='historyTemplate' type='text/ractive'>
-    {{#items}}
-    <li><a href="#" on-click="goback" data-version="{{version}}">{{updated_at}}</a></li>
-  {{/items}}
+            <h1 contenteditable="true" value="{{title}}" id="title"></h1>
+<textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea></div>
     </script>
         <script type="text/javascript">
+$( document ).ajaxError(function( event, jqxhr, settings, thrownError ) {
+    $.UIkit.notify("Error: " + event + " " + jqxhr + " " + settings + " " + thrownError);
+});
+var formatDate = function(ts) {
+    return new Date(ts*1000).toLocaleString();
+};
+var highlightNote = function(index) {
+    $(".nselected").removeClass("nselected");
+    $(".noteBox").eq(index).addClass("nselected");
+};
+$("#new-notebook").on({
+    'uk.modal.show': function(){
+        $("#new-notebook-name").focus()
+    },
+});
+$("#new-notebook-form").on("submit", function(ev) {
+    ev.preventDefault();
+    notebook = $("#new-notebook-name").val();
+    $("#new-notebook-name").val("");
+    $.UIkit.modal("#new-notebook").hide();
+    $.ajax({url: "/api/notebook",
+        type: "POST",
+        data: JSON.stringify({"name": notebook}),
+    }).done(function() {
+        $.UIkit.notify("<i class='uk-icon-check'></i> Notebook created");
+        loadNotebooks();
+    });
+});
 
-var editable = document.getElementById('title');
-editable.addEventListener('blur', function() {
+var notes = [];
+var sidebar = new Ractive({
+  el: 'sidebar',
+  template: "#template",
+  data: { items: [], formatDate: formatDate, notebook: "All", notebookId: "", notebooks: [] }
+});
+sidebar.on("load", function(ev) {
+    uuid = $(ev.node).data("uuid");
+    loadNote(uuid, $(ev.node).index());
+});
+sidebar.on("loadnotebook", function(ev) {
+    notebook = $(ev.node).data("id");
+    sidebar.set({notebook: $(ev.node).html(), notebookId: notebook});
+    console.log("load "+notebook);
+    loadNotes();
+});
+sidebar.on("newnote", function(ev) {
+    newNote("Untitled");
+});
+sidebar.observe('notebookId', function(newValue, oldValue, keypath) {
+    if (newValue == oldValue) {
+        return;
+    }
+    if (newValue == "") {
+        $("#new-note-menu").hide();
+    } else {
+        $("#new-note-menu").show();
+    };
+});
+var loadNotes = function() {
+    var params = "";
+    if (sidebar.get("notebookId") != "") {
+        params = "?notebook="+sidebar.get("notebookId")
+    }
+    $.ajax({url: "/api/note"+params,
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        notes = data;
+        sidebar.set("items", notes);
+        if (notes.length > 0) {
+            loadNote($(".noteBox").eq(0).data("uuid"), 0);
+        } else {
+            newNote("Untitled");
+        }
+    });
+};
+var loadNotebooks = function() {
+    $.ajax({url: "/api/notebook",
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        data.unshift({name: "All", id: ""})
+        sidebar.set("notebooks", data);
+    });
+};
+loadNotebooks();
+loadNotes();
+var newNote = function(title) {
+    $.ajax({url: "/api/note",
+        type: "POST",
+        data: JSON.stringify({"title": title, "notebook": sidebar.get("notebookId")}),
+        dataType: "json"
+    }).done(function(data) {
+        $("#body").data("uuid", data.id);
+        $("#body").data("index", 0);
+        notes.unshift(data)
+        highlightNote(0);
+        editor.set(data);
+    });
+};
+var loadNote = function(uuid, index) {
+    highlightNote(index);
+    $("#body").data("uuid", uuid);
+    $("#body").data("index", index);
+    $.ajax({url: "/api/note/"+uuid,
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        editor.set(data);
+    });
+}
+
+var editor = new Ractive({
+  el: 'main',
+  template: "#editorTemplate",
+  data: { history: [], title: "Untitled", formatDate: formatDate }
+});
+editor.on("goback", function(ev) {
+    hash = $(ev.node).data("version");
+    console.log(hash);
+    $.ajax({url: "/api/note/version/"+hash,
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        console.log(data);
+        $("#body").data("htmleditor").editor.setValue(data.body);
+        $.UIkit.notify("<i class='uk-icon-clock'></i> Note version loaded");
+    });
+});
+editor.observe('title', function(newValue, oldValue, keypath) {
+    if (newValue == oldValue) {
+        return;
+    }
+    sidebar.set("items["+$("#body").data("index")+"].title", newValue);
+});
+$("#title").on("blur", function(ev) {
     if ($("#body").data("uuid") == undefined) {
         console.log("uuid not set")
         return;
     }
-    body = $("#body").data("htmleditor").editor.getValue()
     $.ajax({url: "/api/note/"+$("#body").data("uuid"),
         type: "PUT",
-        data: JSON.stringify({"title": editable.innerHTML}),
+        data: JSON.stringify({"title": $("#title").html()}),
         dataType: "json"
     }).done(function(data) {
-        //updateNote(data);
-        console.log(data);
-        sidebar.set("items["+$("#body").data("index")+"].title", data.title);
         $.UIkit.notify("<i class='uk-icon-check'></i> Note title updated");
-    });
+    }); 
+});
+editor.observe('body', function(newValue, oldValue, keypath) {
+    console.log("body"+newValue)
+    if (newValue == oldValue || newValue == undefined) {
+        return;
+    }
+    $("#body").data("htmleditor").editor.setValue(newValue);
 });
 
-$("#new-note").on("click", function(ev) {
-    ev.preventDefault();
-    console.log("new");
-    newNote("Untitled");
-});
 // Hook-up Ctrl+s
 $("#body").on("htmleditor-save", function(ed) {
+    console.log("Ctrl+s")
     if ($("#body").data("uuid") == undefined) {
         console.log("uuid not set")
         return;
@@ -188,107 +309,12 @@ $("#body").on("htmleditor-save", function(ed) {
         dataType: "json"
     }).done(function(data) {
         console.log(data);
-        updateNote(data);
         sidebar.set("items["+$("#body").data("index")+"].updated_at", data.updated_at);
-        $("#modified").html(data.updated_at);
+        editor.set("updated_at", data.updated_at);
         $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
     });
 });
-var history = new Ractive({
-  el: 'ractiveHistory',
-  template: "#historyTemplate",
-  data: { items: [] }
-});
-history.on("goback", function(ev) {
-    hash = $(ev.node).data("version");
-    $(ev.node).parents("li").addClass("uk-active")
-    console.log(hash);
-    $.ajax({url: "/api/note/version/"+hash,
-        type: "GET",
-        dataType: "json"
-    }).done(function(data) {
-        console.log(data);
-        $("#body").data("htmleditor").editor.setValue(data.body);
-        $.UIkit.notify("<i class='uk-icon-clock'></i> Note version loaded");
-    });
-});
-var notes = [];
-var sidebar = new Ractive({
-  el: 'sidebar',
-  template: "#template",
-  data: { items: [] }
-});
-sidebar.on("load", function(ev) {
-    uuid = $(ev.node).data("uuid");
-    console.log("load called on"+uuid+" #"+$(ev.node).index());
-    loadNote(uuid, $(ev.node).index());
-});
-var newNote = function(title) {
-    $.ajax({url: "/api/note",
-        type: "POST",
-        data: JSON.stringify({"title": title}),
-        dataType: "json"
-    }).done(function(data) {
-        updateNote(data);
-        console.log(data);
-        $("#body").data("uuid", data.id);
-        console.log("unshifting")
-        notes.unshift(data)
-        loadNote(data.id, 0)
-        $(".nselected").removeClass("nselected");
-        $(".noteBox").eq(0).addClass("nselected");
-    });
-};
 
-var loadNote = function(uuid, index) {
-    $(".nselected").removeClass("nselected");
-    $(".noteBox").eq(index).addClass("nselected");
-    $("#body").data("uuid", uuid);
-    $("#body").data("index", index);
-    $.ajax({url: "/api/note/"+uuid,
-        type: "GET",
-        dataType: "json"
-    }).done(function(data) {
-        updateNote(data);
-        console.log(data);
-        $("#title").html(data.title);
-        $("#body").data("htmleditor").editor.setValue(data.body);
-        $("#modified").html(data.updated_at);
-        $("#created").html(data.created_at);
-        history.merge("items", data.history);
-
-    });
-}
-
-var updateNote = function(note) {
-    note.created_at = new Date(note.created_at*1000).toLocaleString();
-    if (note.updated_at == 0) {
-        note.updated_at = note.created_at
-    } else {
-        note.updated_at = new Date(note.updated_at*1000).toLocaleString();
-    }
-    if (note.history != null) {
-        note.history.map(function(h) {
-            h.updated_at = new Date(h.updated_at*1000).toLocaleString();
-        });
-    };
-};
-
-$.ajax({url: "/api/note",
-    type: "GET",
-    dataType: "json"
-}).done(function(data) {
-    console.log(data);
-    data.map(updateNote);
-    notes = data;
-    sidebar.set("items", notes);
-
-    if (notes.length > 0) {
-        loadNote($(".noteBox").eq(0).data("uuid"), 0);
-    } else {
-        newNote("Untitled");
-    }
-});
 </script>
     </body>
 </html>

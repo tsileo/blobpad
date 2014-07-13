@@ -8,6 +8,7 @@ import (
 	"time"
 	"bytes"
 	"strconv"
+	"strings"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
@@ -56,6 +57,7 @@ type Note struct {
 		UpdatedAt int `json:"updated_at"`
 		Version string `json:"version"`
 	} `json:"history"`
+	Notebook string `json:"notebook"`
 }
 
 func IndexNewNote(note *Note) error {
@@ -110,13 +112,54 @@ func IndexUpdateNote(note *Note) error {
     return nil
 }
 
+func IndexQueryNote(query map[string]interface{}) ([]string, error) {
+	notes := []string{}
+	data := map[string]interface{}{"query": query}
+	data["sort"] = []map[string]interface{}{map[string]interface{}{"updated_at": map[string]interface{}{"order": "desc"}}}
+	js, _ := json.Marshal(data)
+	var body bytes.Buffer
+	body.Write(js)
+	request, err := http.NewRequest("POST", "http://localhost:9200/blobpad/notes/_search", &body)
+	if err != nil {
+	  	return nil, err
+	}
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+	 	return nil, err
+	}
+	body.Reset()
+	body.ReadFrom(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+	  	return nil, fmt.Errorf("query failed %v", body.String())
+	}
+	var f map[string]interface{}
+	if err := json.Unmarshal(body.Bytes(), &f); err != nil {
+		return nil, err
+	}
+	hits := f["hits"].(map[string]interface{})["hits"].([]interface{})
+	for _, hit := range hits {
+		notes = append(notes, hit.(map[string]interface{})["_id"].(string))
+	}
+    return notes, nil
+}
+
+var QueryMatchAll = map[string]interface{}{"match_all": map[string]interface{}{}}
+
+// TODO
+// - [ ] search query handling
+// - [ ] latest note sorted by updated_at
+// ## reference request
+// $ curl -XPOST "http://localhost:9200/blobpad/notes/_search" -d'{"query":{"match_all": {}}, "sort":[{"updated_at": {"order": "desc"}}]}}'
+
 func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	con := pool.Get()
 	defer con.Close()	
 	switch {
 	case r.Method == "GET":
         notebooks := []*Notebook{}
-		notebooksUUIDs, _ := redis.Strings(con.Do("SMEMBERS", "nbstest1"))
+		notebooksUUIDs, _ := redis.Strings(con.Do("SMEMBERS", "nbstest1151"))
 		for _, UUID := range notebooksUUIDs {
 			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("nb:%v:title", UUID)))
 			notebooks = append(notebooks, &Notebook{UUID: UUID, Name: title})
@@ -132,9 +175,10 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	        panic(err)
 	    }
 		u, _ := uuid.NewV4()
-	    t.UUID = u.String()
+	    t.UUID = strings.Replace(u.String(), "-", "", -1)
+	    fmt.Printf("%+v\n", t)
 	    con.Do("TXINIT", "blobpad")
-	    con.Do("SADD", "nbstest1", t.UUID)
+	    con.Do("SADD", "nbstest1151", t.UUID)
 	    con.Do("SET", fmt.Sprintf("nb:%v:created", t.UUID), time.Now().UTC().Unix())
 	    // TODO a mattr cmd
 	    // 1 arg => get
@@ -154,15 +198,28 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "GET":
         notes := []*Note{}
-		notesUUIDs, _ := redis.Strings(con.Do("SMEMBERS", "nstest1"))
+		//notesUUIDs, _ := redis.Strings(con.Do("SMEMBERS", "nstest1"))
+		q := QueryMatchAll
+		if r.FormValue("notebook") != "" {
+			q = map[string]interface{}{"filtered": map[string]interface{}{
+				"filter": map[string]interface{}{"term": map[string]interface{}{"notebook": r.FormValue("notebook")}},
+			}}
+		}
+		fmt.Printf("%+v", q)
+		notesUUIDs, err := IndexQueryNote(q)
+		if err != nil {
+			fmt.Printf("err search %v", err)
+		}
 		for _, UUID := range notesUUIDs {
 			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", UUID)))
 			created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", UUID)))
+			notebook, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:notebook", UUID)))
 			bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", UUID), "WITH", "INDEX"))
 			n := &Note{
 				UUID: UUID,
 				Title: title,
 				CreatedAt: created,
+				Notebook: notebook,
 			}
 			notes = append(notes, n)
 			if len(bodyData) == 2 {
@@ -181,11 +238,12 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	        panic(err)
 	    }
 		u, _ := uuid.NewV4()
-	    n.UUID = u.String()
+	    n.UUID = strings.Replace(u.String(), "-", "", -1)
 	    con.Do("TXINIT", "blobpad")
 	    con.Do("SADD", "nstest1", n.UUID)
 	    created := time.Now().UTC().Unix()
 	    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
+	    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), n.Notebook)
 	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
 	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), n.Title)
 	    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
@@ -209,11 +267,13 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "GET":
 		created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", vars["id"])))
+		notebook, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:notebook", vars["id"])))
 		title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", vars["id"])))
 		n := &Note{
 			UUID: vars["id"],
 			Title: title,
 			CreatedAt: created,
+			Notebook: notebook,
 		}
 		bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", vars["id"]), "WITH", "INDEX"))
 		if len(bodyData) == 2 {
@@ -293,14 +353,33 @@ func noteVersionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func noteSearchHandler(w http.ResponseWriter, r *http.Request) {
+	con := pool.Get()
+	defer con.Close()
+	switch {
+	case r.Method == "POST":
+		js, _ := json.Marshal([]struct{
+			Value string  `json:"value"`
+			Title string  `json:"title"`
+		}{{"OK", "OK"}})
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Printf("%+v", string(js))
+		w.Write(js)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+}
+
 func main() {
 	pool = getPool(defaultAddr)
 	r := mux.NewRouter()
 	r.HandleFunc("/", indexHandler)
 	r.HandleFunc("/api/notebook", notebooksHandler)
 	r.HandleFunc("/api/note", notesHandler)
-	r.HandleFunc("/api/note/{id}", noteHandler)
 	r.HandleFunc("/api/note/version/{hash}", noteVersionHandler)
+	r.HandleFunc("/api/note/search", noteSearchHandler)
+	r.HandleFunc("/api/note/{id}", noteHandler)
 	http.Handle("/", r)
 	http.ListenAndServe(":8000", nil)
 }
