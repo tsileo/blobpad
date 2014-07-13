@@ -456,7 +456,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		    con.Do("SADD", "nstest1", n.UUID)
 		    created := time.Now().UTC().Unix()
 		    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
-		    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), "a8aebecaef4849f74ea16c216646f7fe")
+		    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), "02177a4d539e4841552f739dd33f3795")
 		    con.Do("SET", fmt.Sprintf("n:%v:pdf_ref", n.UUID), n.PdfRef)
 		    con.Do("SET", fmt.Sprintf("n:%v:pdf_filename", n.UUID), n.PdfFilename)
 		    con.Do("SET", fmt.Sprintf("n:%v:pdf_content_ref", n.UUID), n.PdfContentRef)
@@ -509,6 +509,8 @@ func main() {
 	r.HandleFunc("/api/note/{id}", noteHandler)
 	r.HandleFunc("/api/upload", uploadHandler)
 	r.HandleFunc("/api/pdf/{ref}", pdfHandler)
+	//r.HandleFunc("/_reindex", reindexHandler)
+	http.Handle("/public/", http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
 	http.Handle("/", r)
 	http.ListenAndServe(":8000", nil)
 }

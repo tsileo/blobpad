@@ -101,11 +101,14 @@
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/autocomplete.min.js"></script>
         <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
-   
-  <script type="text/javascript" src="https://raw.github.com/mozilla/pdf.js/gh-pages/build/pdf.js"></script>
+   <!-- https://raw.github.com/mozilla/pdf.js/gh-pages/build 
+https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/ui_utils.js
+https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/text_layer_builder.js
+-->
+  <script type="text/javascript" src="/public/pdf.js"></script>
 
-  <script type="text/javascript" src="https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/ui_utils.js"></script>
-  <script type="text/javascript" src="https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/text_layer_builder.js"></script>
+  <script type="text/javascript" src="/public/ui_utils.js"></script>
+  <script type="text/javascript" src="/public/text_layer_builder.js"></script>
   
       <script id='template' type='text/ractive'>
       <div class="uk-margin-remove">
@@ -433,7 +436,7 @@ $("#body").on("htmleditor-save", function(ed) {
         $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
     });
 });
-PDFJS.disableWorker = true;
+//PDFJS.disableWorker = true;
   var scale = 1.5;
 
   function loadPdf(pdfPath) {
