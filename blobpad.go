@@ -378,6 +378,7 @@ func noteSearchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
 	con := cl.ConnWithCtx(ctx)
 	defer con.Close()
 	switch r.Method {
@@ -436,19 +437,22 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fmt.Printf("Error put file %v", err)
 			}
+			fmt.Printf("upload notebook: %v", vars["notebook"])
 			n.PdfRef = snap.Ref
 	   		u, _ := uuid.NewV4()
 	   		n.UUID = strings.Replace(u.String(), "-", "", -1)
+		    n.Notebook = vars["notebook"]
+		    n.Title = filepath.Base(filename)
 	    	con.Do("TXINIT", "blobpad")
 		    con.Do("SADD", "nstest1", n.UUID)
 		    created := time.Now().UTC().Unix()
 		    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
-		    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), "02177a4d539e4841552f739dd33f3795")
+		    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), n.Notebook)
 		    con.Do("SET", fmt.Sprintf("n:%v:pdf_ref", n.UUID), n.PdfRef)
 		    con.Do("SET", fmt.Sprintf("n:%v:pdf_filename", n.UUID), n.PdfFilename)
 		    con.Do("SET", fmt.Sprintf("n:%v:pdf_content_ref", n.UUID), n.PdfContentRef)
 		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
-		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), filepath.Base(filename))
+		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), n.Title)
 		    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
 		    con.Do("TXCOMMIT")
 		    n.CreatedAt = int(created)
@@ -461,12 +465,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func pdfHandler(w http.ResponseWriter, r *http.Request) {
-	
 	vars := mux.Vars(r)
 	con := cl.ConnWithCtx(ctx)
 	defer con.Close()
 	pdfRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_ref", vars["id"])))
-	pdfFilename, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_filename", vars["id"])))
 	meta, err := client.NewMetaFromDB(con, pdfRef)
 	if err != nil {
 		panic(err)
@@ -476,6 +478,7 @@ func pdfHandler(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	io.Copy(&buf, ffile)
 	if r.FormValue("dl") != "" {
+		pdfFilename, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_filename", vars["id"])))
 		w.Header().Set("Content-Disposition", "attachment; filename="+pdfFilename)
 	}
 	w.Header().Set("Content-Type", "application/pdf")
@@ -497,7 +500,7 @@ func main() {
 	r.HandleFunc("/api/note/search", noteSearchHandler)
 	r.HandleFunc("/api/note/{id}", noteHandler)
 	r.HandleFunc("/api/note/{id}/pdf", pdfHandler)
-	r.HandleFunc("/api/upload", uploadHandler)
+	r.HandleFunc("/api/upload/{notebook}", uploadHandler)
 	//r.HandleFunc("/_reindex", reindexHandler)
 	http.Handle("/public/", http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
 	http.Handle("/", r)

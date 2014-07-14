@@ -100,6 +100,7 @@
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/htmleditor.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/autocomplete.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/upload.min.js"></script>
         <script src='http://cdn.ractivejs.org/latest/ractive.min.js'></script>
    <!-- https://raw.github.com/mozilla/pdf.js/gh-pages/build 
 https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/ui_utils.js
@@ -129,7 +130,9 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                             </li>
                         </ul>
                         <div class="uk-navbar-flip" id="new-note-menu">
+                        <div class="uk-navbar-content"><div class="uk-form-file"><i class="uk-icon-cloud-upload"></i> Upload PDF<input type="file" id="pdf-select"></div></div>
                             <ul class="uk-navbar-nav">
+
                                 <li><a href="#" on-click="newnote"><i class="uk-icon-plus"></i> New note</a></li>
                             </ul>
                         </div>
@@ -141,7 +144,9 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                                     </div>-->
                     </nav>
                 </div>
-                
+                <div id="progressbar" class="uk-progress uk-hidden">
+    <div class="uk-progress-bar" style="width: 0%;">...</div>
+</div>
                 <div>
        {{#items}}
     {{>note}}
@@ -190,8 +195,9 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
 
 {{#pdf_ref}}
  <div class="uk-navbar-flip">
-<div class="uk-navbar-content"> 
-<a href="/api/note/{{id}}/pdf?dl=1" style="color:#111"><i class="uk-icon-cloud-download"></i> Download</a></div>
+ <ul class="uk-navbar-nav"><li>
+<a href="/api/note/{{id}}/pdf?dl=1" style="color:#111"><i class="uk-icon-cloud-download"></i> Download</a></li>
+</ul>
                                 </div>
 {{/pdf_ref}}
 
@@ -235,7 +241,9 @@ var highlightNote = function(index) {
     $(".nselected").removeClass("nselected");
     $(".noteBox").eq(index).addClass("nselected");
 };
+var select = {options:{}}
 
+            
 // Focus on the notebook name when the new notebook modal appear
 $("#new-notebook").on({
     'uk.modal.show': function(){
@@ -316,6 +324,7 @@ var loadNotes = function() {
     if (sidebar.get("notebookId") != "") {
         params = "?notebook="+sidebar.get("notebookId")
     }
+    select.options.action = "/api/upload/"+sidebar.get("notebookId");
     $.ajax({url: "/api/note"+params,
         type: "GET",
         dataType: "json"
@@ -511,7 +520,37 @@ $("#body").on("htmleditor-save", function(ed) {
       page.render(renderContext);
     });
   }
+  var progressbar = $("#progressbar"),
+            bar         = progressbar.find('.uk-progress-bar'),
+            uploadSettings    = {
+            action: '/api/upload/', // upload url
+            allow : '*.pdf',
 
+            loadstart: function() {
+                bar.css("width", "0%").text("0%");
+                progressbar.removeClass("uk-hidden");
+            },
+
+            progress: function(percent) {
+                percent = Math.ceil(percent);
+                bar.css("width", percent+"%").text(percent+"%");
+            },
+
+            allcomplete: function(response) {
+
+                bar.css("width", "100%").text("100%");
+
+                setTimeout(function(){
+                    progressbar.addClass("uk-hidden");
+                }, 250);
+
+        $.UIkit.notify("<i class='uk-icon-check'></i> Upload done");
+        loadNotes();
+
+            }
+        };
+
+        var select = $.UIkit.uploadSelect($("#pdf-select"), uploadSettings);
   //loadPdf(url);
 //$(window).scroll(function() {
 //    if ($(document).height() > $(window).height()) {
