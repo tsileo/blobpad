@@ -13,89 +13,87 @@
         }
         /* CSS classes used by TextLayerBuilder to style the text layer divs */
 
-/* This stuff is important! Otherwise when you select the text, the text in the divs will show up! */
-::selection { background:rgba(0,0,255,0.3); }
-::-moz-selection { background:rgba(0,0,255,0.3); }
+        /* This stuff is important! Otherwise when you select the text, the text in the divs will show up! */
+        ::selection { background:rgba(0,0,255,0.3); }
+        ::-moz-selection { background:rgba(0,0,255,0.3); }
 
-.textLayer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    color: #000;
-    font-family: sans-serif;
-    overflow: hidden;
-}
+        .textLayer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            color: #000;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
 
-.textLayer > div {
-    color: transparent;
-    position: absolute;
-    line-height: 1;
-    white-space: pre;
-    cursor: text;
-}
+        .textLayer > div {
+            color: transparent;
+            position: absolute;
+            line-height: 1;
+            white-space: pre;
+            cursor: text;
+        }
 
-.textLayer .highlight {
-    margin: -1px;
-    padding: 1px;
+        .textLayer .highlight {
+            margin: -1px;
+            padding: 1px;
 
-    background-color: rgba(180, 0, 170, 0.2);
-    border-radius: 4px;
-}
+            background-color: rgba(180, 0, 170, 0.2);
+            border-radius: 4px;
+        }
 
-.textLayer .highlight.begin {
-    border-radius: 4px 0px 0px 4px;
-}
+        .textLayer .highlight.begin {
+            border-radius: 4px 0px 0px 4px;
+        }
 
-.textLayer .highlight.end {
-    border-radius: 0px 4px 4px 0px;
-}
+        .textLayer .highlight.end {
+            border-radius: 0px 4px 4px 0px;
+        }
 
-.textLayer .highlight.middle {
-    border-radius: 0px;
-}
+        .textLayer .highlight.middle {
+            border-radius: 0px;
+        }
 
-.textLayer .highlight.selected {
-    background-color: rgba(0, 100, 0, 0.2);
-}
+        .textLayer .highlight.selected {
+            background-color: rgba(0, 100, 0, 0.2);
+        }
 
-#pdfBox {
-    border:1px solid #e5e5e5;
-    width: 100%;
-}
+        #pdfBox {
+            border:1px solid #e5e5e5;
+            width: 100%;
+        }
         </style>
     </head>
     <body style="height:100%;overflow-y: scroll;padding:0">
         <div class="" style="display: -webkit-flex;display: flex;align-items:strech;">
-            <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;" id="sidebar">
-                
+            <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;" id="sidebar">    
             </div>
-            <div style="padding:0;-webkit-flex: 1;flex: 1;" id="main">
-
-
-</div>
+            <div style="padding:0;-webkit-flex: 1;flex: 1;" id="main"></div>
         </div>
 
-<div id="new-notebook" class="uk-modal">
-    <div class="uk-modal-dialog">
-        <a href="" class="uk-modal-close uk-close uk-close-alt"></a>
-        <form class="uk-form" id="new-notebook-form">
-            <fieldset>
-        <legend>New Notebook</legend>
-        <div class="uk-form-row"><input type="text" placeholder="My Notebook" id="new-notebook-name"></div>
-        <div class="uk-form-row"><button class="uk-button uk-modal-close" type="button">Cancel</button> <button class="uk-button uk-button-primary" type="submit">Save</button></div>
-         <fieldset>
-    </form>
-    </div>
-</div>
+        <!-- New Notebook modal -->
+        <div id="new-notebook" class="uk-modal">
+            <div class="uk-modal-dialog">
+                <a href="" class="uk-modal-close uk-close uk-close-alt"></a>
+                <form class="uk-form" id="new-notebook-form">
+                    <fieldset>
+                <legend>New Notebook</legend>
+                <div class="uk-form-row"><input type="text" placeholder="My Notebook" id="new-notebook-name"></div>
+                <div class="uk-form-row"><button class="uk-button uk-modal-close" type="button">Cancel</button> <button class="uk-button uk-button-primary" type="submit">Save</button></div>
+                 <fieldset>
+            </form>
+            </div>
+        </div>
+
     	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     	<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/uikit.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/codemirror.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/markdown/markdown.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/addon/mode/overlay.min.js"></script>
-       <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/xml/xml.min.js"></script>
-       <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/gfm/gfm.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/xml/xml.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/codemirror/4.3.0/mode/gfm/gfm.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/htmleditor.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.8.0/js/addons/notify.min.js"></script>
@@ -106,132 +104,122 @@
 https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/ui_utils.js
 https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bcac1096b31f/web/text_layer_builder.js
 -->
-  <script type="text/javascript" src="/public/pdf.js"></script>
-
-  <script type="text/javascript" src="/public/ui_utils.js"></script>
-  <script type="text/javascript" src="/public/text_layer_builder.js"></script>
-  
-      <script id='template' type='text/ractive'>
-      <div class="uk-margin-remove">
-                    <nav class="uk-navbar">
-                        <a class="uk-navbar-brand" href="#">BlobPad</a>
-                        <ul class="uk-navbar-nav">
-                            <li class="uk-parent uk-active" data-uk-dropdown="">
-                                <a href=""><i class="uk-icon-inbox"></i> <strong>{{notebook}}</strong></a>
-                                <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
-                                   <ul class="uk-nav uk-nav-navbar">
-                                   {{#notebooks}}
-                                   <li><a href="#" on-click="loadnotebook" data-id="{{id}}">{{name}}</a></li>
-                                   {{/notebooks}}
-                                        <li class="uk-nav-divider"></li>
-                                        <li><a href="#new-notebook" data-uk-modal>New notebook</a></li>
-                                    </ul>
-                                </div>
-                            </li>
-                        </ul>
-                        <div class="uk-navbar-content">
-                                        <form class="uk-form uk-margin-remove uk-display-inline-block" id="notes-search">
-                                            <input type="text" id="notes-search-query">
-                                            <input type="submit" class="uk-button uk-button-primary" value="search"> 
-                                        </form>
-                                    </div>
-
-                        <div id="new-note-menu">
-                        <div class="uk-navbar-content"><div class="uk-form-file"><i class="uk-icon-cloud-upload"></i> Upload PDF<input type="file" id="pdf-select"></div></div>
-                            <ul class="uk-navbar-nav">
-
-                                <li><a href="#newnote" on-click="newnote"><i class="uk-icon-plus"></i> New Note</a></li>
-                            </ul>
-                        </div>
-                                    
-                    </nav>
+        <script type="text/javascript" src="/public/pdf.js"></script>
+        <script type="text/javascript" src="/public/ui_utils.js"></script>
+        <script type="text/javascript" src="/public/text_layer_builder.js"></script>
+        <script id='template' type='text/ractive'>
+<div class="uk-margin-remove">
+    <nav class="uk-navbar">
+        <a class="uk-navbar-brand" href="#">BlobPad</a>
+        <ul class="uk-navbar-nav">
+            <li class="uk-parent uk-active" data-uk-dropdown="">
+                <a href=""><i class="uk-icon-inbox"></i> <strong>{{notebook}}</strong></a>
+                <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
+                    <ul class="uk-nav uk-nav-navbar">
+                        {{#notebooks}}
+                        <li><a href="#" on-click="loadnotebook" data-id="{{id}}">{{name}}</a></li>
+                        {{/notebooks}}
+                        <li class="uk-nav-divider"></li>
+                        <li><a href="#new-notebook" data-uk-modal>New notebook</a></li>
+                    </ul>
                 </div>
-                <div id="progressbar" class="uk-progress uk-hidden">
-    <div class="uk-progress-bar" style="width: 0%;">...</div>
+            </li>
+        </ul>
+        <div class="uk-navbar-content">
+            <form class="uk-form uk-margin-remove uk-display-inline-block" id="notes-search">
+                <input type="text" id="notes-search-query">
+                <input type="submit" class="uk-button uk-button-primary" value="search"> 
+            </form>
+        </div>
+        <div id="new-note-menu">
+            <div class="uk-navbar-content">
+                <div class="uk-form-file">
+                    <i class="uk-icon-cloud-upload"></i> Upload PDF<input type="file" id="pdf-select">
+                </div>
+            </div>
+            <ul class="uk-navbar-nav">
+                <li><a href="#newnote" on-click="newnote"><i class="uk-icon-plus"></i> New Note</a></li>
+            </ul>
+        </div>                                    
+    </nav>
 </div>
-                <div>
-       {{#items}}
+<div id="progressbar" class="uk-progress uk-hidden">
+<div class="uk-progress-bar" style="width: 0%;">...</div>
+</div>
+    <div>
+    {{#items}}
     {{>note}}
-  {{/items}}
+    {{/items}}
+    </div>
 </div>
 
-                </div>
 <!-- {{>note}} -->
-      <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load">
-      <div style="padding:10px;cursor: pointer;">
+    <div class="noteBox note{{ id }}" data-uuid="{{ id }}" on-click="load">
+    <div style="padding:10px;cursor: pointer;">
     <h3 class="uk-margin-remove">{{title}}</h3>
     {{^../../notebookId}}
-   <p class="uk-article-meta uk-margin-remove">Notebook: {{notebookName(notebook)}}</p>
-   {{/../../notebookId}}
+    <p class="uk-article-meta uk-margin-remove">Notebook: {{notebookName(notebook)}}</p>
+    {{/../../notebookId}}
     <p class="uk-article-meta uk-margin-remove">Created: {{formatDate(created_at)}}</p>
-   {{#updated_at}}<p class="uk-article-meta uk-margin-remove">Modified: {{formatDate(updated_at)}}</p>{{/updated_at}}
-
-    
+    {{#updated_at}}<p class="uk-article-meta uk-margin-remove">Modified: {{formatDate(updated_at)}}</p>{{/updated_at}}
     </div><hr class="uk-article-divider uk-margin-remove"></hr></div>
 <!-- {{/note}} -->
-    </script>
+        </script>
 
-    <script id='editorTemplate' type='text/ractive'>
-                <div class="uk-margin-remove">
-                    <nav class="uk-navbar">
-                                  
-                                  <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}{{#updated_at}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}{{/updated_at}}</div>
-{{#history}}
-                                     <div class="uk-navbar-flip">
-                                    <ul class="uk-navbar-nav">
-                                        <li class="uk-parent" data-uk-dropdown="">
-                                            <a href=""><i class="uk-icon-clock-o"></i> History</a>
-
-                                            <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
-                                                <ul class="uk-nav uk-nav-navbar">
-                                                        {{#history}}
-    <li><a href="#" on-click="goback" data-version="{{version}}">{{formatDate(updated_at)}}</a></li>
-  {{/history}}
-                                                </ul>
-                                            </div>
-
-                                        </li>
-
-                                    </ul>
-                                </div>{{/history}}
-
-{{#pdf_ref}}
- <div class="uk-navbar-flip">
- <ul class="uk-navbar-nav"><li>
-<a href="/api/note/{{id}}/pdf?dl=1" style="color:#111"><i class="uk-icon-cloud-download"></i> Download</a></li>
-</ul>
-                                </div>
-{{/pdf_ref}}
-
-                                </nav>
-
-                            </div>
-
-                <div style="padding: 10px">
-            <h1 contenteditable="true" value="{{title}}" id="title"></h1>
-
-
-{{#pdf_ref}}
-<div id="pdfBox">
+        <script id='editorTemplate' type='text/ractive'>
 <div class="uk-margin-remove">
-                    <nav class="uk-navbar">
-                                  
-                                  <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{pdf_filename}}</div>
+    <nav class="uk-navbar">
+        <div class="uk-navbar-content">
+            <i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}{{#updated_at}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}{{/updated_at}}
+        </div>
+        {{#history}}
+        <div class="uk-navbar-flip">
+            <ul class="uk-navbar-nav">
+                <li class="uk-parent" data-uk-dropdown="">
+                    <a href=""><i class="uk-icon-clock-o"></i> History</a>
+                    <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
+                        <ul class="uk-nav uk-nav-navbar">
+                        {{#history}}
+                            <li><a href="#" on-click="goback" data-version="{{version}}">{{formatDate(updated_at)}}</a></li>
+                        {{/history}}
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+        {{/history}}
 
-                                  
-                                </nav>
-
-                            </div>
-<div id="pdfContainer"></div>
+        {{#pdf_ref}}
+        <div class="uk-navbar-flip">
+            <ul class="uk-navbar-nav">
+                <li>
+                    <a href="/api/note/{{id}}/pdf?dl=1" style="color:#111"><i class="uk-icon-cloud-download"></i> Download</a>
+                </li>
+            </ul>
+        </div>
+        {{/pdf_ref}}
+    </nav>
 </div>
-{{/pdf_ref}}
 
-<div id="editorBox">
-<textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
-</div>
+<div style="padding: 10px">
+    <h1 contenteditable="true" value="{{title}}" id="title"></h1>
 
+    {{#pdf_ref}}
+    <div id="pdfBox">
+        <div class="uk-margin-remove">
+            <nav class="uk-navbar">
+                <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{pdf_filename}}</div>
+            </nav>
+        </div>
+        <div id="pdfContainer"></div>
+    </div>
+    {{/pdf_ref}}
+
+    <div id="editorBox">
+    <textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
+    </div>
 </div>
-    </script>
+        </script>
         <script type="text/javascript">
 $( document ).ajaxError(function( event, jqxhr, settings, thrownError ) {
     $.UIkit.notify("Error: " + event + " " + jqxhr + " " + settings + " " + thrownError);
@@ -335,10 +323,6 @@ var loadNotes = function() {
         sidebar.set("items", notes);
         if (notes.length > 0) {
             loadNote($(".noteBox").eq(0).data("uuid"), 0);
-        } else {
-            if (sidebar.get("notebookId") != "") {
-                newNote("Untitled");
-            }
         }
     });
 };
@@ -471,19 +455,17 @@ $("#body").on("htmleditor-save", function(ed) {
         $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
     });
 });
-//PDFJS.disableWorker = true;
-  var scale = 1.5;
 
-  function loadPdf(pdfPath) {
+// Handle the PDF viewver
+var scale = 1.5;
+function loadPdf(pdfPath) {
     var pdf = PDFJS.getDocument(pdfPath);
     pdf.then(renderPdf);
-  }
-
-  function renderPdf(pdf) {
+}
+function renderPdf(pdf) {
     pdf.getPage(1).then(renderPage);
-  }
-
-  function renderPage(page) {
+}
+function renderPage(page) {
     var viewport = page.getViewport(scale);
     var $canvas = jQuery("<canvas></canvas>");
 
@@ -537,52 +519,39 @@ $("#body").on("htmleditor-save", function(ed) {
 
       page.render(renderContext);
     });
-  }
-  var progressbar = $("#progressbar"),
-            bar         = progressbar.find('.uk-progress-bar'),
-            uploadSettings    = {
-            action: '/api/upload/', // upload url
-            allow : '*.pdf',
+}
 
-            loadstart: function() {
-                bar.css("width", "0%").text("0%");
-                progressbar.removeClass("uk-hidden");
-            },
+// Handle the PDF upload
+var progressbar = $("#progressbar"),
+    bar         = progressbar.find('.uk-progress-bar'),
+    uploadSettings    = {
+        action: '/api/upload/', // upload url
+        allow : '*.pdf',
+        loadstart: function() {
+            bar.css("width", "0%").text("0%");
+            progressbar.removeClass("uk-hidden");
+        },
+        progress: function(percent) {
+            percent = Math.ceil(percent);
+            bar.css("width", percent+"%").text(percent+"%");
+        },
+        allcomplete: function(response) {
+            bar.css("width", "100%").text("100%");
+            setTimeout(function(){
+                progressbar.addClass("uk-hidden");
+            }, 250);
+            $.UIkit.notify("<i class='uk-icon-check'></i> Upload done");
+            loadNotes();
+        }
+    },
+    select = $.UIkit.uploadSelect($("#pdf-select"), uploadSettings);
 
-            progress: function(percent) {
-                percent = Math.ceil(percent);
-                bar.css("width", percent+"%").text(percent+"%");
-            },
-
-            allcomplete: function(response) {
-
-                bar.css("width", "100%").text("100%");
-
-                setTimeout(function(){
-                    progressbar.addClass("uk-hidden");
-                }, 250);
-
-        $.UIkit.notify("<i class='uk-icon-check'></i> Upload done");
-        loadNotes();
-
-            }
-        };
-
-        var select = $.UIkit.uploadSelect($("#pdf-select"), uploadSettings);
-  //loadPdf(url);
-//$(window).scroll(function() {
-//    if ($(document).height() > $(window).height()) {
-//        $("#sidebar").css("height", "100%")
-//    } else {
-//        $("#sidebar").css("height", "100hv")
-//    }
-//});
-
+// Handle the search form
 $("#notes-search").on("submit", function(ev) {
     ev.preventDefault();
     query = $("#notes-search-query").val();
     searchNotes(query);
 });
-</script>
+        </script>
     </body>
 </html>
