@@ -169,7 +169,7 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                     <nav class="uk-navbar">
                                   
                                   <div class="uk-navbar-content"><i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}{{#updated_at}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}{{/updated_at}}</div>
-
+{{#history}}
                                      <div class="uk-navbar-flip">
                                     <ul class="uk-navbar-nav">
                                         <li class="uk-parent" data-uk-dropdown="">
@@ -186,12 +186,18 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                                         </li>
 
                                     </ul>
+                                </div>{{/history}}
+
+{{#pdf_ref}}
+ <div class="uk-navbar-flip">
+<div class="uk-navbar-content"> 
+<a href="/api/note/{{id}}/pdf?dl=1" style="color:#111"><i class="uk-icon-cloud-download"></i> Download</a></div>
                                 </div>
+{{/pdf_ref}}
+
                                 </nav>
 
                             </div>
-
-
 
                 <div style="padding: 10px">
             <h1 contenteditable="true" value="{{title}}" id="title"></h1>
@@ -319,7 +325,9 @@ var loadNotes = function() {
         if (notes.length > 0) {
             loadNote($(".noteBox").eq(0).data("uuid"), 0);
         } else {
-            newNote("Untitled");
+            if (sidebar.get("notebookId") != "") {
+                newNote("Untitled");
+            }
         }
     });
 };
@@ -357,7 +365,7 @@ var loadNote = function(uuid, index) {
     }).done(function(data) {
         editor.set(data);
         if (data.pdf_ref != "") {
-            loadPdf('/api/pdf/'+data.pdf_ref);
+            loadPdf('/api/note/'+data.id+"/pdf");
             $(".uk-htmleditor").hide();
         } else {
             $(".uk-htmleditor").show();
