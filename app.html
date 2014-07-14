@@ -129,19 +129,21 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                                 </div>
                             </li>
                         </ul>
-                        <div class="uk-navbar-flip" id="new-note-menu">
+                        <div class="uk-navbar-content">
+                                        <form class="uk-form uk-margin-remove uk-display-inline-block" id="notes-search">
+                                            <input type="text" id="notes-search-query">
+                                            <input type="submit" class="uk-button uk-button-primary" value="search"> 
+                                        </form>
+                                    </div>
+
+                        <div id="new-note-menu">
                         <div class="uk-navbar-content"><div class="uk-form-file"><i class="uk-icon-cloud-upload"></i> Upload PDF<input type="file" id="pdf-select"></div></div>
                             <ul class="uk-navbar-nav">
 
-                                <li><a href="#" on-click="newnote"><i class="uk-icon-plus"></i> New note</a></li>
+                                <li><a href="#newnote" on-click="newnote"><i class="uk-icon-plus"></i> New Note</a></li>
                             </ul>
                         </div>
-<!--
-                                    <div class="uk-navbar-content uk-hidden-small">
-                                        <form class="uk-form uk-margin-remove uk-display-inline-block">
-                                            <input type="text" placeholder="Search">
-                                        </form>
-                                    </div>-->
+                                    
                     </nav>
                 </div>
                 <div id="progressbar" class="uk-progress uk-hidden">
@@ -337,6 +339,22 @@ var loadNotes = function() {
             if (sidebar.get("notebookId") != "") {
                 newNote("Untitled");
             }
+        }
+    });
+};
+var searchNotes = function(q) {
+    var params = "?query="+q;
+    if (sidebar.get("notebookId") != "") {
+        params = "&notebook="+sidebar.get("notebookId")
+    }
+    $.ajax({url: "/api/note"+params,
+        type: "GET",
+        dataType: "json"
+    }).done(function(data) {
+        notes = data;
+        sidebar.set("items", notes);
+        if (notes.length > 0) {
+            loadNote($(".noteBox").eq(0).data("uuid"), 0);
         }
     });
 };
@@ -560,6 +578,11 @@ $("#body").on("htmleditor-save", function(ed) {
 //    }
 //});
 
+$("#notes-search").on("submit", function(ev) {
+    ev.preventDefault();
+    query = $("#notes-search-query").val();
+    searchNotes(query);
+});
 </script>
     </body>
 </html>
