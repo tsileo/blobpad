@@ -43,8 +43,9 @@ type Note struct {
 	Title string `json:"title"`
 	Body string `json:"body"`
 	PdfRef string `json:"pdf_ref"`
-	PdfContentRef string `json:"pdf_content_ref"`
-	PdfFilename string `json:"pdf_filename"`
+	PdfContent string `json:"pdf_content,omitempty"`
+	PdfContentRef string `json:"pdf_content_ref,omitempty"`
+	PdfFilename string `json:"pdf_filename,omitempty"`
 	CreatedAt int `json:"created_at"`
 	UpdatedAt int `json:"updated_at"`
 	History []struct{
@@ -156,9 +157,7 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("nb:%v:title", UUID)))
 			notebooks = append(notebooks, &Notebook{UUID: UUID, Name: title})
 		}
-		js, _ := json.Marshal(notebooks)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(js)
+		WriteJSON(w, notebooks)
 	case r.Method == "POST":
 		decoder := json.NewDecoder(r.Body)
 	    var t Notebook
@@ -433,6 +432,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			n.PdfContentRef = textHash
+			n.PdfContent = string(text)
 			snap, _, _, err := cl.Put(&client.Ctx{Namespace: "blobpad", Archive: true}, tmp.Name())
 			if err != nil {
 				fmt.Printf("Error put file %v", err)
