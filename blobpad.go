@@ -274,6 +274,7 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
 	    con.Do("TXCOMMIT")
 	    n.CreatedAt = int(created)
+	    n.UpdatedAt = n.CreatedAt
 	    IndexNote(&n)
 	    WriteJSON(w, n)
 	    return
@@ -447,6 +448,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
 		    con.Do("TXCOMMIT")
 		    n.CreatedAt = int(created)
+		    n.UpdatedAt = n.CreatedAt
 		    IndexNote(&n)
 		    WriteJSON(w, &n)
 		}

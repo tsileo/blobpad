@@ -209,6 +209,9 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         <div class="uk-margin-remove">
             <nav class="uk-navbar">
                 <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{pdf_filename}}</div>
+                <div class="uk-navbar-flip">
+                    <div class="uk-navbar-content">Page: {{pdfPage}}/{{pdfNumPages}}</div>
+                </div>
             </nav>
         </div>
         <div id="pdfContainer"></div>
@@ -367,6 +370,7 @@ var newNote = function(title) {
     });
 };
 var loadNote = function(uuid, index) {
+    $("#pdfContainer").html("").css({height: 0});
     highlightNote(index);
     $("#body").data("uuid", uuid);
     $("#body").data("index", index);
@@ -387,7 +391,7 @@ var loadNote = function(uuid, index) {
 var editor = new Ractive({
   el: 'main',
   template: "#editorTemplate",
-  data: { history: [], title: "Untitled", formatDate: formatDate }
+  data: { history: [], title: "Untitled", formatDate: formatDate, pdfNumPages: 0, pdfPage: 0 }
 });
 
 // Load a previous note version
@@ -457,16 +461,20 @@ $("#body").on("htmleditor-save", function(ed) {
 });
 
 // Handle the PDF viewver
-var scale = 1.5;
+//var scale = canvas.width / page.getViewport(1.0).width;
 function loadPdf(pdfPath) {
     var pdf = PDFJS.getDocument(pdfPath);
     pdf.then(renderPdf);
 }
 function renderPdf(pdf) {
+    editor.set("pdfNumPages", pdf.numPages);
+    editor.set("pdfPage", 1);
     pdf.getPage(1).then(renderPage);
 }
 function renderPage(page) {
-    var viewport = page.getViewport(scale);
+    //var viewport = page.getViewport(1.5);
+    var viewport = page.getViewport($("#pdfBox").width() / page.getViewport(1.0).width);
+    
     var $canvas = jQuery("<canvas></canvas>");
 
     // Set the canvas height and width to the height and width of the viewport
