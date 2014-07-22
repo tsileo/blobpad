@@ -110,7 +110,7 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         <script id='template' type='text/ractive'>
 <div class="uk-margin-remove">
     <nav class="uk-navbar">
-        <a class="uk-navbar-brand" href="#">BlobPad</a>
+        <a class="uk-navbar-brand" href="/">BlobPad</a>
         <ul class="uk-navbar-nav">
             <li class="uk-parent uk-active" data-uk-dropdown="">
                 <a href=""><i class="uk-icon-inbox"></i> <strong>{{notebook}}</strong></a>
@@ -189,7 +189,7 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         </div>
         {{/history}}
 
-        {{#pdf_ref}}
+        {{#attachment}}
         <div class="uk-navbar-flip">
             <ul class="uk-navbar-nav">
                 <li>
@@ -197,26 +197,26 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                 </li>
             </ul>
         </div>
-        {{/pdf_ref}}
+        {{/attachment}}
     </nav>
 </div>
 
 <div style="padding: 10px">
     <h1 contenteditable="true" value="{{title}}" id="title"></h1>
 
-    {{#pdf_ref}}
+    {{#attachment}}
     <div id="pdfBox">
         <div class="uk-margin-remove">
             <nav class="uk-navbar">
-                <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{pdf_filename}}</div>
+                <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{attachment.filename}}</div>
                 <div class="uk-navbar-flip">
-                    <div class="uk-navbar-content">Page: {{pdfPage}}/{{pdfNumPages}}</div>
+                    <div class="uk-navbar-content">Page: {{pdfPage}} / {{pdfNumPages}}</div>
                 </div>
             </nav>
         </div>
         <div id="pdfContainer"></div>
     </div>
-    {{/pdf_ref}}
+    {{/attachment}}
 
     <div id="editorBox">
     <textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
@@ -274,6 +274,7 @@ var sidebar = new Ractive({
 // Load a note
 sidebar.on("load", function(ev) {
     uuid = $(ev.node).data("uuid");
+    console.log("loading note "+uuid);
     loadNote(uuid, $(ev.node).index());
 });
 
@@ -370,6 +371,7 @@ var newNote = function(title) {
     });
 };
 var loadNote = function(uuid, index) {
+    console.log("loadNote")
     $("#pdfContainer").html("").css({height: 0});
     highlightNote(index);
     $("#body").data("uuid", uuid);
@@ -378,8 +380,11 @@ var loadNote = function(uuid, index) {
         type: "GET",
         dataType: "json"
     }).done(function(data) {
+        console.log("<- here")
+        console.log(data);
         editor.set(data);
-        if (data.pdf_ref != "") {
+        if (data.attachment_id != "") {
+            console.log("Loading PDF");
             loadPdf('/api/note/'+data.id+"/pdf");
             $(".uk-htmleditor").hide();
         } else {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha1"
 	"encoding/json"
 	"net/http"
 	"fmt"
@@ -11,22 +10,23 @@ import (
 	"os"
 	"os/exec"
 	"bytes"
-	"strconv"
 	"strings"
 	"path/filepath"
+	"strconv"
 	"log"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/mux"
+	"github.com/dchest/blake2b"
 	"github.com/nu7hatch/gouuid"
-	"github.com/tsileo/blobstash/client/blobstore"
 	"github.com/tsileo/blobstash/client"
+	"github.com/tsileo/blobstash/client/ctx"
+	"github.com/tsileo/blobstash/client/clientutil"
 )
 
 var (
 	defaultAddr = ":9735"
-	bctx = &blobstore.Ctx{Namespace: "blobpad"}
-	ctx = &client.Ctx{Namespace: "blobpad"}
+	blobPadCtx = &ctx.Ctx{Namespace: "blobpad"}
 	cl *client.Client
 	notebooksSetKey = "blobpad:notebooks"
 	notesSetKey = "blobpad:notes"
@@ -41,10 +41,7 @@ type Note struct {
 	UUID string `json:"id"`
 	Title string `json:"title"`
 	Body string `json:"body"`
-	PdfRef string `json:"pdf_ref"`
-	PdfContent string `json:"pdf_content,omitempty"`
-	PdfContentRef string `json:"pdf_content_ref,omitempty"`
-	PdfFilename string `json:"pdf_filename,omitempty"`
+	BodyRef string `json:"-"`
 	CreatedAt int `json:"created_at"`
 	UpdatedAt int `json:"updated_at"`
 	History []struct{
@@ -52,6 +49,73 @@ type Note struct {
 		Version string `json:"version"`
 	} `json:"history"`
 	Notebook string `json:"notebook"`
+	AttachmentContent string `json:"attachment_content,omitempty"` // Only set for indexing
+	AttachmentUUID string `json:"attachment_id"` // Pointer to the Attachment uuid
+	Attachment *Attachment `json:"attachment,omitempty"` // Only set for indexing
+}
+
+type Attachment struct {
+	UUID string `json:"id"`
+	Ref string `json:"ref"` // Pointer to the meta
+	ContentRef string `json:"content_ref,omitempty"`
+	Type string `json:"type,omitempty"`
+	Filename string `json:"filename,omitempty"`
+}
+
+func NewNote(con redis.Conn, uuid string) (*Note, error) {
+	title, err := cl.Llast(con, fmt.Sprintf("n:%v:title", uuid))
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching title: %v", err)
+	}
+	createdAt, err := cl.GetInt(con, fmt.Sprintf("n:%v:created", uuid))
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching createdAt: %v", err)
+	}
+	notebook, err := cl.Get(con, fmt.Sprintf("n:%v:notebook", uuid))
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching key %v: %v", fmt.Sprintf("n:%v:notebook", uuid), err)
+	}
+	attachmentUUID, err := cl.Get(con, fmt.Sprintf("n:%v:attachment_id", uuid))
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching AttachmentUUID: %v", err)
+	}
+	bodyRef, updatedAt, _ := cl.LlastWithIndex(con, fmt.Sprintf("n:%v:body", uuid))
+	//if err != nil {
+	//	return nil, fmt.Errorf("Error fetching history: %v", err)
+	//}
+	return &Note{
+		UUID: uuid,
+		Title: title,
+		BodyRef: bodyRef,
+		UpdatedAt: updatedAt,
+		CreatedAt: createdAt,
+		Notebook: notebook,
+		AttachmentUUID: attachmentUUID,
+	}, nil
+}
+
+func (n *Note) LoadAttachment(con redis.Conn) error {
+	if n.AttachmentUUID == "" {
+		return nil
+	}
+	n.Attachment = &Attachment{}
+	return cl.HscanStruct(con, fmt.Sprintf("a:%v", n.AttachmentUUID), n.Attachment)
+}
+
+func (n *Note) Save(tx *client.Transaction) error {
+	u, _ := uuid.NewV4()
+	n.UUID = strings.Replace(u.String(), "-", "", -1)
+	tx.Sadd(notesSetKey, n.UUID)
+	created := int(time.Now().UTC().Unix())
+	tx.Set(fmt.Sprintf("n:%v:created", n.UUID), strconv.Itoa(created))
+	tx.Set(fmt.Sprintf("n:%v:attachment_id", n.UUID), n.AttachmentUUID)
+	tx.Set(fmt.Sprintf("n:%v:notebook", n.UUID), n.Notebook)
+	tx.Ladd(fmt.Sprintf("n:%v:title", n.UUID), 0, "")
+	tx.Ladd(fmt.Sprintf("n:%v:title", n.UUID), created, n.Title)
+	tx.Ladd(fmt.Sprintf("n:%v:body", n.UUID), 0, "")
+	n.CreatedAt = int(created)
+	n.UpdatedAt = n.CreatedAt
+	return nil
 }
 
 func WriteJSON(w http.ResponseWriter, data interface{}) {
@@ -66,15 +130,13 @@ func WriteJSON(w http.ResponseWriter, data interface{}) {
 
 // UploadBlob upload blobs to BlobDB
 func UploadBlob(blob []byte) (blobHash string, err error) {
-	h := sha1.New()
-	h.Write(blob)
-	blobHash = fmt.Sprintf("%x", h.Sum(nil))
-	exists, err := blobstore.StatBlob(bctx, blobHash)
+	blobHash = fmt.Sprintf("%x", blake2b.Sum256(blob))
+	exists, err := cl.BlobStore.Stat(blobPadCtx, blobHash)
 	if err != nil {
 		return blobHash, err
 	}
 	if !exists {
-		if err := blobstore.PutBlob(bctx, blobHash, blob); err != nil {
+		if err := cl.BlobStore.Put(blobPadCtx, blobHash, blob); err != nil {
 			return blobHash, err
 		}
 	}
@@ -178,14 +240,14 @@ func IndexQueryNote(query map[string]interface{}) ([]string, error) {
 var QueryMatchAll = map[string]interface{}{"match_all": map[string]interface{}{}}
 
 func notebooksHandler(w http.ResponseWriter, r *http.Request) {
-	con := cl.ConnWithCtx(ctx)
-	defer con.Close()	
+	con := cl.ConnWithCtx(blobPadCtx)
+	defer con.Close()
 	switch {
 	case r.Method == "GET":
         notebooks := []*Notebook{}
-		notebooksUUIDs, _ := redis.Strings(con.Do("SMEMBERS", notebooksSetKey))
+		notebooksUUIDs, _ := cl.Smembers(con, notebooksSetKey)
 		for _, UUID := range notebooksUUIDs {
-			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("nb:%v:title", UUID)))
+			title, _ := cl.Llast(con, fmt.Sprintf("nb:%v:title", UUID))
 			notebooks = append(notebooks, &Notebook{UUID: UUID, Name: title})
 		}
 		WriteJSON(w, notebooks)
@@ -199,13 +261,11 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 		u, _ := uuid.NewV4()
 	    t.UUID = strings.Replace(u.String(), "-", "", -1)
 	    fmt.Printf("%+v\n", t)
-	    con.Do("TXINIT", "blobpad")
+	    now := time.Now().UTC().Unix()
+	    con.Do("TXINIT", blobPadCtx.Args()...)
 	    con.Do("SADD", notebooksSetKey, t.UUID)
-	    con.Do("SET", fmt.Sprintf("nb:%v:created", t.UUID), time.Now().UTC().Unix())
-	    // TODO a mattr cmd
-	    // 1 arg => get
-	    // 2 arg => set with current timestamp
-	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), time.Now().UTC().Unix(), t.Name)
+	    con.Do("SET", fmt.Sprintf("nb:%v:created", t.UUID), now)
+	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), now, t.Name)
 	    con.Do("TXCOMMIT")
 		WriteJSON(w, t)
 	    return
@@ -216,8 +276,8 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func notesHandler(w http.ResponseWriter, r *http.Request) {
-	con := cl.ConnWithCtx(ctx)
-	defer con.Close()	
+	con := cl.ConnWithCtx(blobPadCtx)
+	defer con.Close()
 	switch {
 	case r.Method == "GET":
         notes := []*Note{}
@@ -234,25 +294,13 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("%+v", q)
 		notesUUIDs, err := IndexQueryNote(q)
+		fmt.Printf("%+v", notesUUIDs)
 		if err != nil {
 			fmt.Printf("err search %v", err)
 		}
-		for _, UUID := range notesUUIDs {
-			title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", UUID)))
-			created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", UUID)))
-			notebook, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:notebook", UUID)))
-			bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", UUID), "WITH", "INDEX"))
-			n := &Note{
-				UUID: UUID,
-				Title: title,
-				CreatedAt: created,
-				Notebook: notebook,
-			}
+		for _, uuid := range notesUUIDs {
+			n, _ := NewNote(con, uuid)
 			notes = append(notes, n)
-			if len(bodyData) == 2 {
-				n.UpdatedAt, _ = strconv.Atoi(bodyData[0])
-			}
-			
 		}
 		WriteJSON(w, notes)
 	case r.Method == "POST":
@@ -262,19 +310,11 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 	    if err != nil {
 	        panic(err)
 	    }
-		u, _ := uuid.NewV4()
-	    n.UUID = strings.Replace(u.String(), "-", "", -1)
-	    con.Do("TXINIT", "blobpad")
-	    con.Do("SADD", notesSetKey, n.UUID)
-	    created := time.Now().UTC().Unix()
-	    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
-	    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), n.Notebook)
-	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
-	    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), n.Title)
-	    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
-	    con.Do("TXCOMMIT")
-	    n.CreatedAt = int(created)
-	    n.UpdatedAt = n.CreatedAt
+	    tx := client.NewTransaction()
+		n.Save(tx)
+		if err := cl.Commit(blobPadCtx, tx); err != nil {
+			panic(err)
+		}
 	    IndexNote(&n)
 	    WriteJSON(w, n)
 	    return
@@ -285,37 +325,28 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func noteHandler(w http.ResponseWriter, r *http.Request) {
-	con := cl.ConnWithCtx(ctx)
+	con := cl.ConnWithCtx(blobPadCtx)
 	defer con.Close()
 	vars := mux.Vars(r)
 	switch {
 	case r.Method == "GET":
-		created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", vars["id"])))
-		notebook, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:notebook", vars["id"])))
-		pdfRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_ref", vars["id"])))
-		pdfFilename, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_filename", vars["id"])))
-		pdfContentRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_content_ref", vars["id"])))
-		title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", vars["id"])))
-		n := &Note{
-			UUID: vars["id"],
-			Title: title,
-			CreatedAt: created,
-			Notebook: notebook,
-			PdfFilename: pdfFilename,
-			PdfRef: pdfRef,
-			PdfContentRef: pdfContentRef,
+		n, err := NewNote(con, vars["id"])
+		if err != nil {
+			panic(err)
 		}
-		bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", vars["id"]), "WITH", "INDEX"))
-		if len(bodyData) == 2 {
-			n.UpdatedAt, _ = strconv.Atoi(bodyData[0])
-			blob, err := blobstore.GetBlob(bctx, bodyData[1])
+		if n.BodyRef != "" {
+			blob, err := cl.BlobStore.Get(blobPadCtx, n.BodyRef)
 			if err != nil {
 				panic(err)
 			}
 			n.Body = string(blob)
 		}
-		values, _ := redis.Values(con.Do("LRITER", fmt.Sprintf("n:%v:body", vars["id"]), "WITH", "RANGE"))
-		redis.ScanSlice(values, &n.History)
+		if err := n.LoadAttachment(con); err != nil {
+			panic(err)
+		}
+		if err := cl.LriterScanSlice(con, fmt.Sprintf("n:%v:body", vars["id"]), &n.History); err != nil {
+			panic(err)
+		}
 		WriteJSON(w, n)
 	case r.Method == "PUT":
 		decoder := json.NewDecoder(r.Body)
@@ -329,17 +360,17 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	    }
 	    n.UUID = vars["id"]
 	    con.Do("TXINIT", "blobpad")
+	    now := time.Now().UTC().Unix()
 	    if n.Title != "" {
-	    	con.Do("LADD", fmt.Sprintf("n:%v:title", vars["id"]), time.Now().UTC().Unix(), n.Title)
+	    	con.Do("LADD", fmt.Sprintf("n:%v:title", vars["id"]), now, n.Title)
 	    }
 	    if n.Body != "" {
 	    	blobHash, err := UploadBlob([]byte(n.Body))
 	    	if err != nil {
 	    		panic(err)
 	    	}
-			updatedAt := time.Now().UTC().Unix()
-	    	con.Do("LADD", fmt.Sprintf("n:%v:body", vars["id"]), updatedAt, blobHash)
-	    	n.UpdatedAt = int(updatedAt)
+	    	con.Do("LADD", fmt.Sprintf("n:%v:body", vars["id"]), now, blobHash)
+	    	n.UpdatedAt = int(now)
 	    }
 	    con.Do("TXCOMMIT")
 	    IndexUpdateNote(&n)
@@ -352,12 +383,12 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func noteVersionHandler(w http.ResponseWriter, r *http.Request) {
-	con := cl.ConnWithCtx(ctx)
+	con := cl.ConnWithCtx(blobPadCtx)
 	defer con.Close()
 	vars := mux.Vars(r)
 	switch {
 	case r.Method == "GET":
-		blob, err := blobstore.GetBlob(bctx, vars["hash"])
+		blob, err := cl.BlobStore.Get(blobPadCtx, vars["hash"])
 		if err != nil {
 			panic(err)
 		}
@@ -370,7 +401,7 @@ func noteVersionHandler(w http.ResponseWriter, r *http.Request) {
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	con := cl.ConnWithCtx(ctx)
+	con := cl.ConnWithCtx(blobPadCtx)
 	defer con.Close()
 	switch r.Method {
 
@@ -393,17 +424,14 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			filename := part.FileName()
-			n := Note{
-				PdfFilename: filepath.Base(filename),
-			}
-
+			n := Note{}
 			tmp, _ := ioutil.TempFile("", "blobpad")
 			if _, err := io.Copy(tmp, part); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			tmp.Close()
- 
+
 			fmt.Printf("received file %v", filename)
 			cmd := exec.Command("pdftotext", tmp.Name(), tmp.Name()+".txt")
 			defer os.Remove(tmp.Name())
@@ -423,32 +451,35 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			n.PdfContentRef = textHash
-			n.PdfContent = string(text)
-			snap, _, _, err := cl.Put(&client.Ctx{Namespace: "blobpad", Archive: true}, tmp.Name())
+			uploader := clientutil.NewUploader(cl)
+	    	tx := client.NewTransaction()
+
+			meta, wr, err := uploader.PutFile(blobPadCtx, tx, tmp.Name())
+			fmt.Printf("upload meta: %+v, wr: %v", meta, wr)
 			if err != nil {
 				fmt.Printf("Error put file %v", err)
 			}
 			fmt.Printf("upload notebook: %v", vars["notebook"])
-			n.PdfRef = snap.Ref
-	   		u, _ := uuid.NewV4()
+			u, _ := uuid.NewV4()
 	   		n.UUID = strings.Replace(u.String(), "-", "", -1)
 		    n.Notebook = vars["notebook"]
 		    n.Title = filepath.Base(filename)
-	    	con.Do("TXINIT", "blobpad")
-		    con.Do("SADD", notesSetKey, n.UUID)
-		    created := time.Now().UTC().Unix()
-		    con.Do("SET", fmt.Sprintf("n:%v:created", n.UUID), created)
-		    con.Do("SET", fmt.Sprintf("n:%v:notebook", n.UUID), n.Notebook)
-		    con.Do("SET", fmt.Sprintf("n:%v:pdf_ref", n.UUID), n.PdfRef)
-		    con.Do("SET", fmt.Sprintf("n:%v:pdf_filename", n.UUID), n.PdfFilename)
-		    con.Do("SET", fmt.Sprintf("n:%v:pdf_content_ref", n.UUID), n.PdfContentRef)
-		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), 0, "")
-		    con.Do("LADD", fmt.Sprintf("n:%v:title", n.UUID), time.Now().UTC().Unix(), n.Title)
-		    con.Do("LADD", fmt.Sprintf("n:%v:body", n.UUID), 0, "")	
-		    con.Do("TXCOMMIT")
-		    n.CreatedAt = int(created)
-		    n.UpdatedAt = n.CreatedAt
+		    ua, _ := uuid.NewV4()
+	   		attachment := &Attachment{
+	   			UUID: strings.Replace(ua.String(), "-", "", -1),
+	   			Ref: meta.Hash,
+	   			Filename: filepath.Base(filename),
+	   			Type: "pdf",
+	   			ContentRef: textHash,
+	   		}
+			n.AttachmentContent = textHash
+			n.AttachmentUUID = attachment.UUID
+			n.Attachment = attachment
+	   		tx.Hmset(fmt.Sprintf("a:%v", attachment.UUID), client.FormatStruct(attachment)...)
+		    n.Save(tx)
+			if err := cl.Commit(blobPadCtx, tx); err != nil {
+				panic(err)
+			}
 		    IndexNote(&n)
 		    WriteJSON(w, &n)
 		}
@@ -459,76 +490,69 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 func pdfHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	con := cl.ConnWithCtx(ctx)
+	con := cl.ConnWithCtx(blobPadCtx)
 	defer con.Close()
-	pdfRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_ref", vars["id"])))
-	meta, err := client.NewMetaFromDB(con, pdfRef)
+	note, err := NewNote(con, vars["id"])
 	if err != nil {
 		panic(err)
 	}
-	ffile := client.NewFakeFile(cl, ctx, meta.Ref, meta.Size)
+	if err := note.LoadAttachment(con); err != nil {
+		panic(err)
+	}
+	//pdfRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_ref", vars["id"])))
+	meta := clientutil.NewMeta()
+	if err := cl.HscanStruct(con, note.Attachment.Ref, meta); err != nil {
+		panic(err)
+	}
+	ffile := clientutil.NewFakeFile(cl, blobPadCtx, meta.Ref, meta.Size)
 	defer ffile.Close()
 	var buf bytes.Buffer
 	io.Copy(&buf, ffile)
 	if r.FormValue("dl") != "" {
-		pdfFilename, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_filename", vars["id"])))
-		w.Header().Set("Content-Disposition", "attachment; filename="+pdfFilename)
+		w.Header().Set("Content-Disposition", "attachment; filename="+note.Attachment.Filename)
 	}
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Write(buf.Bytes())
 }
 
 func reindexHandler(w http.ResponseWriter, r *http.Request) {
-	con := cl.ConnWithCtx(ctx)
+	con := cl.ConnWithCtx(blobPadCtx)
 	defer con.Close()
 	log.Printf("Reindexing...")
 	cnt := 0
-	notesUUIDs, err := redis.Strings(con.Do("SMEMBERS", notesSetKey))
+	notesUUIDs, err := cl.Smembers(con, notesSetKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	for _, uuid := range notesUUIDs {
-		created, _ := redis.Int(con.Do("GET", fmt.Sprintf("n:%v:created", uuid)))
-		notebook, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:notebook", uuid)))
-		pdfRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_ref", uuid)))
-		pdfFilename, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_filename", uuid)))
-		pdfContentRef, _ := redis.String(con.Do("GET", fmt.Sprintf("n:%v:pdf_content_ref", uuid)))
-		title, _ := redis.String(con.Do("LLAST", fmt.Sprintf("n:%v:title", uuid)))
-		n := &Note{
-			UUID: uuid,
-			Title: title,
-			CreatedAt: created,
-			Notebook: notebook,
-			PdfFilename: pdfFilename,
-			PdfRef: pdfRef,
-			PdfContentRef: pdfContentRef,
-		}
-		bodyData, _ := redis.Strings(con.Do("LLAST", fmt.Sprintf("n:%v:body", uuid), "WITH", "INDEX"))
-		if len(bodyData) == 2 {
-			n.UpdatedAt, _ = strconv.Atoi(bodyData[0])
-			blob, err := blobstore.GetBlob(bctx, bodyData[1])
+		n, _ := NewNote(con, uuid)
+		if n.BodyRef != "" {
+			blob, err := cl.BlobStore.Get(blobPadCtx, n.BodyRef)
 			if err != nil {
 				panic(err)
 			}
 			n.Body = string(blob)
 		}
-		if pdfContentRef != "" {
-			contentBlob, err := blobstore.GetBlob(bctx, pdfContentRef)
+		if err := n.LoadAttachment(con); err != nil {
+			panic(err)
+		}
+		if n.AttachmentUUID != "" {
+			contentBlob, err := cl.BlobStore.Get(blobPadCtx, n.Attachment.ContentRef)
 			if err != nil {
 				panic(err)
 			}
-			n.PdfContent = string(contentBlob)
+			n.AttachmentContent = string(contentBlob)
 		}
 	    IndexNote(n)
 	    cnt++
 	    log.Printf("Note %v indexed", uuid)
-	}	
+	}
 	log.Printf("Reindexing done, %v notes indexed", cnt)
 }
 
 func main() {
-	client, err := client.NewClient("blobpad", defaultAddr, []string{})
+	client, err := client.New(defaultAddr)
 	if err != nil {
 		panic(err)
 	}
