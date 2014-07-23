@@ -20,6 +20,9 @@ BlobPad is a note taking application build on top of [BlobStash](https://github.
 
 ## Roadmap
 
+- Authentication
 - JPEG support (+ OCR)
 - Bookmarklet to save website with selected plain-text content
 - An Evernote-like Android app
+- Create new note by email
+- Ability to share note

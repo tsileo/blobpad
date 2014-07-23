@@ -75,10 +75,10 @@ func NewNote(con redis.Conn, uuid string) (*Note, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching key %v: %v", fmt.Sprintf("n:%v:notebook", uuid), err)
 	}
-	attachmentUUID, err := cl.Get(con, fmt.Sprintf("n:%v:attachment_id", uuid))
-	if err != nil {
-		return nil, fmt.Errorf("Error fetching AttachmentUUID: %v", err)
-	}
+	attachmentUUID, _ := cl.Get(con, fmt.Sprintf("n:%v:attachment_id", uuid))
+	//if err != nil {
+	//	return nil, fmt.Errorf("Error fetching AttachmentUUID: %v", err)
+	//}
 	bodyRef, updatedAt, _ := cl.LlastWithIndex(con, fmt.Sprintf("n:%v:body", uuid))
 	//if err != nil {
 	//	return nil, fmt.Errorf("Error fetching history: %v", err)
@@ -265,6 +265,7 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	    con.Do("TXINIT", blobPadCtx.Args()...)
 	    con.Do("SADD", notebooksSetKey, t.UUID)
 	    con.Do("SET", fmt.Sprintf("nb:%v:created", t.UUID), now)
+	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), 0, "")
 	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), now, t.Name)
 	    con.Do("TXCOMMIT")
 		WriteJSON(w, t)
