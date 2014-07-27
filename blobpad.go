@@ -148,6 +148,27 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "app.html")
 }
 
+// IndexDrop drops the elasticsearch blobpad index
+func IndexDrop() error {
+	request, err := http.NewRequest("DELETE", "http://localhost:9200/blobpad/", nil)
+	if err != nil {
+	  	return err
+	}
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+	 	return err
+	}
+	if resp.StatusCode != 200 {
+		var body *bytes.Buffer
+		body.ReadFrom(resp.Body)
+		resp.Body.Close()
+		return fmt.Errorf("failed to drop index %v", body)
+	}
+    return nil
+}
+
+
 // IndexNote index the note in elasticsearch
 func IndexNote(note *Note) error {
 	js, _ := json.Marshal(note)
@@ -520,6 +541,10 @@ func reindexHandler(w http.ResponseWriter, r *http.Request) {
 	con := cl.ConnWithCtx(blobPadCtx)
 	defer con.Close()
 	log.Printf("Reindexing...")
+	if err := IndexDrop(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	cnt := 0
 	notesUUIDs, err := cl.Smembers(con, notesSetKey)
 	if err != nil {
