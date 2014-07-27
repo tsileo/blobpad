@@ -68,7 +68,7 @@
     </head>
     <body style="height:100%;overflow-y: scroll;padding:0">
         <div class="" style="display: -webkit-flex;display: flex;align-items:strech;">
-            <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;" id="sidebar">    
+            <div class="uk-margin-remove" style="border-right:1px solid #ddd;padding:0;resize:horizontal;overflow-y: scroll;padding:0;width:33%;height:100vh;" id="sidebar">
             </div>
             <div style="padding:0;-webkit-flex: 1;flex: 1;" id="main"></div>
         </div>
@@ -116,11 +116,11 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                 <a href=""><i class="uk-icon-inbox"></i> <strong>{{notebook}}</strong></a>
                 <div class="uk-dropdown uk-dropdown-scrollable uk-dropdown-navbar" style="">
                     <ul class="uk-nav uk-nav-navbar">
+                        <li><a href="#new-notebook" data-uk-modal>New notebook</a></li>
+                        <li class="uk-nav-divider"></li>
                         {{#notebooks}}
                         <li><a href="#" on-click="loadnotebook" data-id="{{id}}">{{name}}</a></li>
                         {{/notebooks}}
-                        <li class="uk-nav-divider"></li>
-                        <li><a href="#new-notebook" data-uk-modal>New notebook</a></li>
                     </ul>
                 </div>
             </li>
@@ -140,7 +140,7 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
             <ul class="uk-navbar-nav">
                 <li><a href="#newnote" on-click="newnote"><i class="uk-icon-plus"></i> New Note</a></li>
             </ul>
-        </div>                                    
+        </div>
     </nav>
 </div>
 <div id="progressbar" class="uk-progress uk-hidden">
@@ -172,7 +172,6 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         <div class="uk-navbar-content">
             <i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}{{#updated_at}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}{{/updated_at}}
         </div>
-        {{#history}}
         <div class="uk-navbar-flip">
             <ul class="uk-navbar-nav">
                 <li class="uk-parent" data-uk-dropdown="">
@@ -187,7 +186,6 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                 </li>
             </ul>
         </div>
-        {{/history}}
 
         {{#attachment}}
         <div class="uk-navbar-flip">
@@ -224,6 +222,49 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
 </div>
         </script>
         <script type="text/javascript">
+
+// https://gist.github.com/Yaffle/1287361
+function crc32(s/*, polynomial = 0x04C11DB7, initialValue = 0xFFFFFFFF, finalXORValue = 0xFFFFFFFF*/) {
+  s = String(s);
+  var polynomial = arguments.length < 2 ? 0x04C11DB7 : (arguments[1] >>> 0);
+  var initialValue = arguments.length < 3 ? 0xFFFFFFFF : (arguments[2] >>> 0);
+  var finalXORValue = arguments.length < 4 ? 0xFFFFFFFF : (arguments[3] >>> 0);
+  var table = new Array(256);
+
+  var reverse = function (x, n) {
+    var b = 0;
+    while (--n >= 0) {
+      b <<= 1;
+      b |= x & 1;
+      x >>>= 1;
+    }
+    return b;
+  };
+
+  var i = -1;
+  while (++i < 256) {
+    var g = reverse(i, 32);
+    var j = -1;
+    while (++j < 8) {
+      g = ((g << 1) ^ (((g >>> 31) & 1) * polynomial)) >>> 0;
+    }
+    table[i] = reverse(g, 32);
+  }
+
+  var crc = initialValue;
+  var length = s.length;
+  var k = -1;
+  while (++k < length) {
+    var c = s.charCodeAt(k);
+    if (c > 255) {
+      throw new RangeError();
+    }
+    var index = (crc & 255) ^ c;
+    crc = ((crc >>> 8) ^ table[index]) >>> 0;
+  }
+  return (crc ^ finalXORValue) >>> 0;
+}
+
 $( document ).ajaxError(function( event, jqxhr, settings, thrownError ) {
     $.UIkit.notify("Error: " + event + " " + jqxhr + " " + settings + " " + thrownError);
 });
@@ -236,7 +277,7 @@ var highlightNote = function(index) {
 };
 var select = {options:{}}
 
-            
+
 // Focus on the notebook name when the new notebook modal appear
 $("#new-notebook").on({
     'uk.modal.show': function(){
@@ -396,7 +437,7 @@ var loadNote = function(uuid, index) {
 var editor = new Ractive({
   el: 'main',
   template: "#editorTemplate",
-  data: { history: [], title: "Untitled", formatDate: formatDate, pdfNumPages: 0, pdfPage: 0 }
+  data: { history: [], title: "Untitled", formatDate: formatDate, pdfNumPages: 0, pdfPage: 0, bodyHash: "" }
 });
 
 // Load a previous note version
@@ -442,8 +483,15 @@ editor.observe('body', function(newValue, oldValue, keypath) {
     if (newValue == oldValue || newValue == undefined) {
         return;
     }
+    console.log("body changed")
+    editor.set("bodyHash", crc32(newValue))
     $("#body").data("htmleditor").editor.setValue(newValue);
 });
+window.onbeforeunload = function(){
+    if (jQuery.active || editor.data.bodyHash != crc32($("#body").data("htmleditor").editor.getValue())) {
+        return "Your note has been modifed."
+    }
+};
 
 // Hook-up Ctrl+s
 $("#body").on("htmleditor-save", function(ed) {
