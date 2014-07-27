@@ -412,6 +412,9 @@ var newNote = function(title) {
     });
 };
 var loadNote = function(uuid, index) {
+    if (unsavedChange() && !window.confirm("Your note has been modified, changes will be lost.")) {
+        return;
+    }
     console.log("loadNote")
     $("#pdfContainer").html("").css({height: 0});
     highlightNote(index);
@@ -487,8 +490,11 @@ editor.observe('body', function(newValue, oldValue, keypath) {
     editor.set("bodyHash", crc32(newValue))
     $("#body").data("htmleditor").editor.setValue(newValue);
 });
+var unsavedChange = function() {
+    return editor.data.bodyHash != crc32($("#body").data("htmleditor").editor.getValue());
+};
 window.onbeforeunload = function(){
-    if (jQuery.active || editor.data.bodyHash != crc32($("#body").data("htmleditor").editor.getValue())) {
+    if (jQuery.active || unsavedChange()) {
         return "Your note has been modifed."
     }
 };
