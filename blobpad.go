@@ -54,6 +54,11 @@ type Note struct {
 	Attachment *Attachment `json:"attachment,omitempty"` // Only set for indexing
 }
 
+type Clip struct {
+	Note
+	URL string `json:"url"`
+}
+
 type Attachment struct {
 	UUID string `json:"id"`
 	Ref string `json:"ref"` // Pointer to the meta
@@ -110,10 +115,16 @@ func (n *Note) Save(tx *client.Transaction) error {
 	tx.Set(fmt.Sprintf("n:%v:created", n.UUID), strconv.Itoa(created))
 	tx.Set(fmt.Sprintf("n:%v:attachment_id", n.UUID), n.AttachmentUUID)
 	tx.Set(fmt.Sprintf("n:%v:notebook", n.UUID), n.Notebook)
-	tx.Ladd(fmt.Sprintf("n:%v:title", n.UUID), 0, "")
 	tx.Ladd(fmt.Sprintf("n:%v:title", n.UUID), created, n.Title)
-	tx.Ladd(fmt.Sprintf("n:%v:body", n.UUID), 0, "")
-	n.CreatedAt = int(created)
+	if n.Body != "" {
+		blobHash, err := UploadBlob([]byte(n.Body))
+	    if err != nil {
+	    	return err
+	    }
+		tx.Ladd(fmt.Sprintf("n:%v:body", n.UUID), created, blobHash)
+		n.BodyRef = blobHash
+	}
+ 	n.CreatedAt = int(created)
 	n.UpdatedAt = n.CreatedAt
 	return nil
 }
@@ -170,11 +181,11 @@ func IndexDrop() error {
 
 
 // IndexNote index the note in elasticsearch
-func IndexNote(note *Note) error {
+func IndexNote(uuid string, note interface{}) error {
 	js, _ := json.Marshal(note)
 	var body bytes.Buffer
 	body.Write(js)
-	request, err := http.NewRequest("PUT", "http://localhost:9200/blobpad/notes/"+note.UUID, &body)
+	request, err := http.NewRequest("PUT", "http://localhost:9200/blobpad/notes/"+uuid, &body)
 	if err != nil {
 	  	return err
 	}
@@ -286,7 +297,6 @@ func notebooksHandler(w http.ResponseWriter, r *http.Request) {
 	    con.Do("TXINIT", blobPadCtx.Args()...)
 	    con.Do("SADD", notebooksSetKey, t.UUID)
 	    con.Do("SET", fmt.Sprintf("nb:%v:created", t.UUID), now)
-	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), 0, "")
 	    con.Do("LADD", fmt.Sprintf("nb:%v:title", t.UUID), now, t.Name)
 	    con.Do("TXCOMMIT")
 		WriteJSON(w, t)
@@ -337,7 +347,7 @@ func notesHandler(w http.ResponseWriter, r *http.Request) {
 		if err := cl.Commit(blobPadCtx, tx); err != nil {
 			panic(err)
 		}
-	    IndexNote(&n)
+	    IndexNote(n.UUID, &n)
 	    WriteJSON(w, n)
 	    return
 	default:
@@ -398,6 +408,44 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	    IndexUpdateNote(&n)
 	    WriteJSON(w, &n)
 		return
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+}
+
+func clipHandler(w http.ResponseWriter, r *http.Request) {
+	con := cl.ConnWithCtx(blobPadCtx)
+	defer con.Close()
+	switch {
+	case r.Method == "POST":
+		decoder := json.NewDecoder(r.Body)
+	    var n Clip
+	    err := decoder.Decode(&n)
+	    if err != nil {
+	        panic(err)
+	    }
+	    tx := client.NewTransaction()
+	    u, _ := uuid.NewV4()
+   		n.UUID = strings.Replace(u.String(), "-", "", -1)
+  	    ua, _ := uuid.NewV4()
+   		attachment := &Attachment{
+		UUID: strings.Replace(ua.String(), "-", "", -1),
+   			Ref: n.URL,
+   			Filename: n.Title,
+   			Type: "url",
+   		}
+		n.AttachmentUUID = attachment.UUID
+		n.Attachment = attachment
+   		tx.Hmset(fmt.Sprintf("a:%v", attachment.UUID), client.FormatStruct(attachment)...)
+		n.Save(tx)
+		log.Printf("Clip: %+v", n)
+		if err := cl.Commit(blobPadCtx, tx); err != nil {
+			panic(err)
+		}
+	    IndexNote(n.UUID, &n)
+	    WriteJSON(w, n)
+	    return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -502,7 +550,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			if err := cl.Commit(blobPadCtx, tx); err != nil {
 				panic(err)
 			}
-		    IndexNote(&n)
+		    IndexNote(n.UUID, &n)
 		    WriteJSON(w, &n)
 		}
 	default:
@@ -570,7 +618,7 @@ func reindexHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			n.AttachmentContent = string(contentBlob)
 		}
-	    IndexNote(n)
+	    IndexNote(n.UUID, n)
 	    cnt++
 	    log.Printf("Note %v indexed", uuid)
 	}
@@ -592,6 +640,7 @@ func main() {
 	r.HandleFunc("/api/note/{id}", noteHandler)
 	r.HandleFunc("/api/note/{id}/pdf", pdfHandler)
 	r.HandleFunc("/api/upload/{notebook}", uploadHandler)
+	r.HandleFunc("/api/clip", clipHandler)
 	r.HandleFunc("/_reindex", reindexHandler)
 	http.Handle("/public/", http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
 	http.Handle("/", r)

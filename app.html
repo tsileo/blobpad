@@ -172,6 +172,11 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         <div class="uk-navbar-content">
             <i class="uk-icon-info-circle"></i>  <span class="uk-text-muted">created:</span> {{formatDate(created_at)}}{{#updated_at}}<span class="uk-text-muted">, modified: </span>{{formatDate(updated_at)}}{{/updated_at}}
         </div>
+        {{#attachment.type=="url"}}
+        <div class="uk-navbar-content">
+            <i class="uk-icon-external-link-square"></i> <a href="{{attachment.ref}}" style="color:#111;">{{attachment.ref}}</a>
+        </div>
+        {{/attachment.type=="url"}}
         <div class="uk-navbar-flip">
             <ul class="uk-navbar-nav">
                 <li class="uk-parent" data-uk-dropdown="">
@@ -187,7 +192,7 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
             </ul>
         </div>
 
-        {{#attachment}}
+        {{#attachment.type=="pdf"}}
         <div class="uk-navbar-flip">
             <ul class="uk-navbar-nav">
                 <li>
@@ -195,14 +200,14 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
                 </li>
             </ul>
         </div>
-        {{/attachment}}
+        {{/attachment.type=="pdf"}}
     </nav>
 </div>
 
 <div style="padding: 10px">
     <h1 contenteditable="true" value="{{title}}" id="title"></h1>
 
-    {{#attachment}}
+    {{#attachment.type=="pdf"}}
     <div id="pdfBox">
         <div class="uk-margin-remove">
             <nav class="uk-navbar">
@@ -214,7 +219,7 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         </div>
         <div id="pdfContainer"></div>
     </div>
-    {{/attachment}}
+    {{/attachment.type=="pdf"}}
 
     <div id="editorBox">
     <textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
@@ -427,7 +432,8 @@ var loadNote = function(uuid, index) {
         console.log("<- here")
         console.log(data);
         editor.set(data);
-        if (data.attachment_id != "") {
+        editor.set("attachment", data.attachment || {});
+        if (data.attachment_id != "" && editor.get("attachment.type") == "pdf") {
             console.log("Loading PDF");
             loadPdf('/api/note/'+data.id+"/pdf");
             $(".uk-htmleditor").hide();

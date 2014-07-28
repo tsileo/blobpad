@@ -17,6 +17,22 @@ BlobPad is a note taking application build on top of [BlobStash](https://github.
 - Possibility to encrypt notes using [NaCl secretbox](http://nacl.cr.yp.to/secretbox.html) (via BlobStash)
 - No delete feature by design, deleted notes/notebooks stay in a special trash
 
+## Installation
+
+Assuming you have installed/configured [BlobStash](https://github.com/tsileo/blobstash) and [Elasticsearch](http://www.elasticsearch.org/).
+
+
+
+## Usage
+
+
+
+### Re-indexing
+
+```console
+$ curl http://localhost:8000/_reindex
+```
+
 ## Based upon
 
 - [BlobStash](https://github.com/tsileo/blobstash), for blob store/database

@@ -522,7 +522,7 @@ div.appendChild(clonedSelection);
 var html = div.innerHTML;
 var md = toMarkdown(html);
 console.log(md);
-
+//https://developer.mozilla.org/en-US/docs/AJAX/Getting_Started
   function makeRequest(url) {
     if (window.XMLHttpRequest) { // Mozilla, Safari, ...
       httpRequest = new XMLHttpRequest();
