@@ -167,6 +167,11 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         </script>
 
         <script id='editorTemplate' type='text/ractive'>
+        {{^loaded}}<div class="uk-alert" data-uk-alert>
+    <a href="" class="uk-alert-close uk-close"></a>
+        <p class="uk-text-large"><i class="uk-icon-info-circle"></i> Start by creating a <a href="#new-notebook" data-uk-modal>new notebook</a> and a new note.</p></div>
+        {{/loaded}}
+        {{#loaded}}
 <div class="uk-margin-remove">
     <nav class="uk-navbar">
         <div class="uk-navbar-content">
@@ -207,8 +212,14 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
 <div style="padding: 10px">
     <h1 contenteditable="true" value="{{title}}" id="title"></h1>
 
-    {{#attachment.type=="pdf"}}
-    <div id="pdfBox">
+
+{{^attachment.type=="pdf"}}
+    <div id="editorBox">
+    <textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
+    </div>
+{{/attachment.type=="pdf"}}
+{{#attachment.type=="pdf"}}
+<div id="pdfBox">
         <div class="uk-margin-remove">
             <nav class="uk-navbar">
                 <div class="uk-navbar-content"><i class="uk-icon-file"></i> {{attachment.filename}}</div>
@@ -219,12 +230,8 @@ https://raw.githubusercontent.com/mozilla/pdf.js/b160e858b36b7c371ec1552d5d19bca
         </div>
         <div id="pdfContainer"></div>
     </div>
-    {{/attachment.type=="pdf"}}
-
-    <div id="editorBox">
-    <textarea id="body" style="width:100%;" data-uk-htmleditor="{mode:'tab', markdown:true, height: '100%'}"></textarea>
-    </div>
-</div>
+{{/attachment.type=="pdf"}}
+</div>{{/loaded}}
         </script>
         <script type="text/javascript">
 
@@ -417,6 +424,7 @@ var newNote = function(title) {
     });
 };
 var loadNote = function(uuid, index) {
+    editor.set("loaded", true);
     if (unsavedChange() && !window.confirm("Your note has been modified, changes will be lost.")) {
         return;
     }
@@ -438,17 +446,23 @@ var loadNote = function(uuid, index) {
             loadPdf('/api/note/'+data.id+"/pdf");
             $(".uk-htmleditor").hide();
         } else {
+            $.UIkit.htmleditor($("#body"), $.UIkit.Utils.options($("#body").attr('data-uk-htmleditor')));
             $(".uk-htmleditor").show();
         }
     });
 }
-
+editor = {get:function(){}}
+var isPDF = function() {
+    return (editor.get("attachment.type") == "pdf");
+}
 var editor = new Ractive({
   el: 'main',
   template: "#editorTemplate",
-  data: { history: [], title: "Untitled", formatDate: formatDate, pdfNumPages: 0, pdfPage: 0, bodyHash: "" }
+  data: { history: [], title: "Untitled", formatDate: formatDate, pdfNumPages: 0, pdfPage: 0, bodyHash: "", loaded: false },
 });
-
+var unsavedChange = function() {
+    return ($("#body").data("htmleditor") != undefined && (editor.get("bodyHash") != crc32($("#body").data("htmleditor").editor.getValue())));
+};
 // Load a previous note version
 editor.on("goback", function(ev) {
     hash = $(ev.node).data("version");
@@ -493,12 +507,11 @@ editor.observe('body', function(newValue, oldValue, keypath) {
         return;
     }
     console.log("body changed")
-    editor.set("bodyHash", crc32(newValue))
-    $("#body").data("htmleditor").editor.setValue(newValue);
+    editor.set("bodyHash", crc32(newValue));
+    if ($("#body").data("htmleditor") != undefined) {
+        $("#body").data("htmleditor").editor.setValue(newValue);
+    }
 });
-var unsavedChange = function() {
-    return editor.data.bodyHash != crc32($("#body").data("htmleditor").editor.getValue());
-};
 window.onbeforeunload = function(){
     if (jQuery.active || unsavedChange()) {
         return "Your note has been modifed."
