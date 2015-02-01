@@ -522,27 +522,27 @@ window.onbeforeunload = function(){
 
 // Hook-up Ctrl+s
 var hookUpCtrlS = function($editor) {
-$editor.off("htmleditor-save");
-$editor.on("htmleditor-save", function(ed) {
-    console.log("Ctrl+s")
-    if ($editor.data("uuid") == undefined) {
-        console.log("uuid not set")
-        return;
-    }
-    body = $editor.data("htmleditor").editor.getValue()
-    $.ajax({url: "/api/note/"+$editor.data("uuid"),
-        type: "PUT",
-        data: JSON.stringify({"body": body}),
-        dataType: "json"
-    }).done(function(data) {
-        console.log(data);
-        sidebar.set("items["+$editor.data("index")+"].updated_at", data.updated_at);
-        editor.set("updated_at", data.updated_at);
-        editor.set("bodyHash", crc32($("#body").data("htmleditor").editor.getValue()));
-        $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
+    $editor.off("htmleditor-save");
+    $editor.on("htmleditor-save", function(ed) {
+        console.log("Ctrl+s")
+        if ($editor.data("uuid") == undefined) {
+            console.log("uuid not set")
+            return;
+        }
+        body = $editor.data("htmleditor").editor.getValue()
+        $.ajax({url: "/api/note/"+$editor.data("uuid"),
+            type: "PUT",
+            data: JSON.stringify({"body": body}),
+            dataType: "json"
+        }).done(function(data) {
+            console.log(data);
+            sidebar.set("items["+$editor.data("index")+"].updated_at", data.updated_at);
+            editor.set("updated_at", data.updated_at);
+            editor.set("bodyHash", crc32($("#body").data("htmleditor").editor.getValue()));
+            $.UIkit.notify("<i class='uk-icon-check'></i> Note saved");
+        });
     });
-});
-}
+};
 // Handle the PDF viewver
 //var scale = canvas.width / page.getViewport(1.0).width;
 function loadPdf(pdfPath) {
